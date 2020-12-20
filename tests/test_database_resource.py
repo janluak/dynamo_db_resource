@@ -106,7 +106,7 @@ class TestCachedDynamoDBResource(TestDynamoDBResource):
         database_resource[self.table_name].get(**self.test_item_primary)
         self.table.delete(**self.test_item_primary)
 
-        from aws_serverless_wrapper._helper import hash_dict
+        from aws_environ_helper import hash_dict
 
         item_hash = hash_dict(self.test_item)
 
@@ -131,7 +131,7 @@ class TestCachedDynamoDBResource(TestDynamoDBResource):
         changed_item["some_float"] = 300281.382
         self.table.put(changed_item, overwrite=True)
 
-        from aws_serverless_wrapper._helper import hash_dict
+        from aws_environ_helper import hash_dict
 
         changed_hash = hash_dict(changed_item)
 
