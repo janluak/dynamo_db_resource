@@ -1,0 +1,4 @@
+boto3
+botocore
+aws_serverless_wrapper
+aws_environ_helper

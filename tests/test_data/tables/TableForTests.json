@@ -1,0 +1,146 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TableForTests",
+  "description": "This is an example schema for creating a dynamo_db table/validating items against",
+  "type": "object",
+  "additionalProperties": false,
+  "default": [
+    "primary_partition_key"
+  ],
+  "properties": {
+    "primary_partition_key": {
+      "description": "the primary partition key of the dynamo db",
+      "type": "string"
+    },
+    "some_string": {
+      "description": "some key containing any kind of strings",
+      "type": "string",
+      "enum": [
+        "abcdef",
+        "ghijkl",
+        "NewBee"
+      ]
+    },
+    "some_int": {
+      "description": "some key containing any integers",
+      "type": "integer"
+    },
+    "some_float": {
+      "description": "some key containing any floats",
+      "type": "number"
+    },
+    "some_dict": {
+      "description": "containing a simple dictionary",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key1": {
+          "description": "dictionary with key's value type string",
+          "type": "string"
+        },
+        "key2": {
+          "description": "dictionary with key's value type number",
+          "type": "number"
+        }
+      }
+    },
+    "some_nested_dict": {
+      "description": "containing a nested_dict",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "KEY1": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "subKEY1": {
+              "type": "string"
+            },
+            "subKEY2": {
+              "type": "number"
+            },
+            "subKEY3": {
+              "$ref": "TableForTests.json#/definitions/third_nested_dict_key"
+            },
+            "subKEY4": {
+              "patternProperties": {
+                "^[a-z]+$": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "TableForTests.json#/definitions/fourth_nested_dict_key_array"
+                  }
+                },
+                "^[a-z0-9]+$": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "TableForTests.json#/definitions/fourth_nested_dict_key_array"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "some_array": {
+      "description": "contains a list",
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "$ref": "TableForTests.json#/definitions/third_array_item"
+          }
+        ]
+      }
+    }
+  },
+  "required": [
+    "primary_partition_key",
+    "some_string",
+    "some_int",
+    "some_float",
+    "some_dict",
+    "some_nested_dict",
+    "some_array"
+  ],
+  "definitions": {
+    "third_array_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "KEY1": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "subKEY1": {
+              "type": "string"
+            },
+            "subKEY2": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "third_nested_dict_key": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "fourth_nested_dict_key_array": {
+      "type": "object",
+      "properties": {
+        "sub_sub_key": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

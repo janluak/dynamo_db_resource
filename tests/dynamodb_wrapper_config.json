@@ -1,0 +1,14 @@
+{
+  "UnitTest": true,
+  "AWS_REGION": "eu-central-1",
+  "WRAPPER_DATABASE": {
+    "noSQL": {
+      "MODEL": "DynamoDB",
+      "SCHEMA_ORIGIN": "file",
+      "SCHEMA_DIRECTORY": "test_data/tables/",
+      "CACHED_TABLES": [
+        "CachedTableForTests"
+      ]
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "primary_partition_key": "some_identification_string",
+  "some_string": "abcdef",
+  "some_int": 42,
+  "some_float": 13.42,
+  "some_dict": {
+    "key1": "value1",
+    "key2": 2
+  },
+  "some_nested_dict": {
+    "KEY1": {
+      "subKEY1": "subVALUE1",
+      "subKEY2": 42.24,
+      "subKEY3": [
+        "first_string"
+      ]
+    }
+  },
+  "some_array": [
+    "simple_string",
+    13,
+    {
+      "KEY1": {
+        "subKEY1": "subVALUE1",
+        "subKEY2": 42.24
+      }
+    }
+  ]
+}
