@@ -21,7 +21,10 @@ def craft_config():
         "cloud": {"region_name": environ["AWS_REGION"]},
     }
 
-    if "AWS_SAM_LOCAL" in environ:
+    if all(key in os_environ for key in ["STAGE", "ENV"]):
+        return __switch_db_resource_config[os_environ["ENV"]]
+
+    elif "AWS_SAM_LOCAL" in environ:
         environ["ENV"] = "local"
         environ["STAGE"] = "TEST"
     elif "AWS_LAMBDA_FUNCTION_NAME" in os_environ:

@@ -61,6 +61,7 @@ def create_dynamo_db_table_from_schema(json_schema, include_stage_in_table_name=
         )
 
         print(f"successfully created table {table_name}")
-    except Exception:
+    except Exception as e:
         print(f"not created table {table_name}")
+        print(e)
         pass
