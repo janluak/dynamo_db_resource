@@ -1,5 +1,4 @@
 {
-  "UnitTest": true,
   "AWS_REGION": "eu-central-1",
   "WRAPPER_DATABASE": {
     "noSQL": {

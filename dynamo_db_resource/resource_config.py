@@ -24,21 +24,7 @@ def craft_config():
     if all(key in os_environ for key in ["STAGE", "ENV"]):
         return __switch_db_resource_config[os_environ["ENV"]]
 
-    elif "AWS_SAM_LOCAL" in environ:
-        environ["ENV"] = "local"
-        environ["STAGE"] = "TEST"
-    elif "AWS_LAMBDA_FUNCTION_NAME" in os_environ:
-        environ["ENV"] = "cloud"
-    elif "UnitTest" in environ:
-        environ["ENV"] = "local"
-        environ["STAGE"] = "TEST"
-    else:
-        if not all(key in environ for key in ["STAGE", "ENV"]):
-            raise ValueError("'STAGE' and 'ENV' need to be provided in os.environ")
-        # else:
-        #     env = environ["ENV"]
-
-    return __switch_db_resource_config[environ["ENV"]]
+    return {"region_name": environ["AWS_REGION"]}
 
 
 resource_config = craft_config()
