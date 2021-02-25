@@ -31,17 +31,29 @@ if __name__ == "__main__":
 
     __parser = ArgumentParser()
     __parser.add_argument(
+        "command",
+        help="what shall be done",
+        choices=["create_table"]
+    )
+
+    __parser.add_argument(
         "--stage",
         "-s",
         help="stage name",
-        default="test",
+        default="dev",
     )
     __parser.add_argument(
         "--environment",
         "-e",
         choices=["local", "cloud"],
         help="environment names",
-        default="local",
+        default="cloud",
+    )
+
+    __parser.add_argument(
+        "--region",
+        "-r",
+        help="AWS region",
     )
 
     __parser.add_argument(
@@ -58,12 +70,24 @@ if __name__ == "__main__":
         default="../test_data/tables/",
     )
 
+    __parser.add_argument(
+        "--config_file",
+        "-c",
+        help="path of the configuration file for aws_environ_helper",
+        default="./dynamodb_wrapper_config.json",
+    )
+
     __vars = vars(__parser.parse_args())
     os_environ["ENV"] = __vars["environment"]
     os_environ["STAGE"] = __vars["stage"].upper()
-    os_environ["WRAPPER_CONFIG_FILE"] = "../dynamodb_wrapper_config.json"
+    os_environ["WRAPPER_CONFIG_FILE"] = __vars["config_file"]
+    os_environ["AWS_REGION"] = __vars["region"]
 
-    if not __vars["tables"]:
-        create_table_for_schema_in_directory(__vars["directory"])
-    else:
-        create_table_for_schema_in_directory(__vars["directory"], __vars["tables"])
+    print(os_environ["AWS_REGION"])
+    print(type(os_environ["AWS_REGION"]))
+
+    if __vars["command"] == "create_table":
+        if not __vars["tables"]:
+            create_table_for_schema_in_directory(__vars["directory"])
+        else:
+            create_table_for_schema_in_directory(__vars["directory"], __vars["tables"])
