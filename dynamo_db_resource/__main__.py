@@ -4,7 +4,7 @@ import json
 
 
 def create_table(schema_file):
-    from dynamo_db_resource.create_table import (
+    from dynamo_db_resource.table_existence import (
         create_dynamo_db_table_from_schema,
     )
 
