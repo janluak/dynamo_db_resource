@@ -4,7 +4,7 @@ from os import environ as os_environ
 __all__ = ["resource_config"]
 
 
-def craft_config():
+def __local_switch():
     __switch_local_docker_env = {
         "UnitTest": "http://localhost:8000",
         "AWS_SAM_LOCAL": "http://docker.for.mac.localhost:8000",
@@ -20,11 +20,14 @@ def craft_config():
         },
         "cloud": {"region_name": environ["AWS_REGION"]},
     }
+    return __switch_db_resource_config[os_environ["ENV"]]
 
-    if all(key in os_environ for key in ["STAGE", "ENV"]):
-        return __switch_db_resource_config[os_environ["ENV"]]
 
-    return {"region_name": environ["AWS_REGION"]}
+def craft_config():
+    if not all(key in os_environ for key in ["STAGE", "AWS_REGION"]):
+        return __local_switch()
+
+    return {"region_name": os_environ["AWS_REGION"] if "AWS_REGION" in os_environ else environ["AWS_REGION"]}
 
 
 resource_config = craft_config()

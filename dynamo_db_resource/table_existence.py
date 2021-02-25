@@ -1,5 +1,12 @@
-from aws_environ_helper import environ
 import boto3
+from os import environ as os_environ
+if all(key in os_environ for key in ["STAGE", "AWS_REGION"]):
+    stage = os_environ["STAGE"]
+    resource_config = {"region_name": os_environ["AWS_REGION"]}
+else:
+    from aws_environ_helper import environ
+    from .resource_config import resource_config
+    stage = environ['STAGE']
 
 __all__ = ["create_dynamo_db_table_from_schema", "delete_dynamo_db_table"]
 
@@ -40,8 +47,6 @@ def _parse_json_schema_2_dynamo_db_schema(json_schema):
 
 
 def create_dynamo_db_table_from_schema(json_schema, include_stage_in_table_name=True):
-    from .resource_config import resource_config
-
     (
         table_name,
         attribute_definitions,
@@ -49,7 +54,7 @@ def create_dynamo_db_table_from_schema(json_schema, include_stage_in_table_name=
     ) = _parse_json_schema_2_dynamo_db_schema(json_schema)
 
     if include_stage_in_table_name:
-        table_name = f"{environ['STAGE']}-{table_name}"
+        table_name = f"{stage}-{table_name}"
 
     ddb = boto3.resource("dynamodb", **resource_config)
     try:
@@ -76,7 +81,7 @@ def delete_dynamo_db_table(table_name: str, add_stage_to_table_name: bool = True
             return
 
     if add_stage_to_table_name:
-        table_name = f"{environ['STAGE']}-{table_name}"
+        table_name = f"{stage}-{table_name}"
 
     ddb = boto3.client("dynamodb", **resource_config)
     ddb.delete_table(TableName=table_name)

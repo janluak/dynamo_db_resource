@@ -4,8 +4,10 @@ from os.path import dirname, realpath
 from os import chdir, getcwd
 from copy import deepcopy
 from fil_io.json import load_single
+from moto import mock_dynamodb2
 
 
+@mock_dynamodb2
 class TestDynamoDBResource(TestCase):
     actual_cwd = str()
     table = object
@@ -13,6 +15,7 @@ class TestDynamoDBResource(TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         os_environ["STAGE"] = "TEST"
+        os_environ["AWS_REGION"] = "eu-central-1"
         os_environ[
             "WRAPPER_CONFIG_FILE"
         ] = f"{dirname(realpath(__file__))}/dynamodb_wrapper_config.json"
@@ -20,19 +23,29 @@ class TestDynamoDBResource(TestCase):
         cls.actual_cwd = getcwd()
         chdir(dirname(realpath(__file__)))
 
-        from dynamo_db_resource import Table
-
-        cls.table = Table(cls.table_name)
-
     @classmethod
     def tearDownClass(cls) -> None:
         chdir(cls.actual_cwd)
-        cls.table.delete(**cls.test_item_primary)
 
         del os_environ["WRAPPER_CONFIG_FILE"]
 
     def setUp(self) -> None:
+        from dynamo_db_resource.table_existence import (
+            create_dynamo_db_table_from_schema,
+        )
+        create_dynamo_db_table_from_schema(
+            load_single(
+                f"{dirname(realpath(__file__))}/test_data/tables/{self.table_name}.json"
+            )
+        )
+
+        from dynamo_db_resource import Table
+        self.table = Table(self.table_name)
         self.table.put(self.test_item, overwrite=True)
+
+    def tearDown(self) -> None:
+        from dynamo_db_resource.table_existence import delete_dynamo_db_table
+        delete_dynamo_db_table(self.table_name, require_confirmation=False)
 
 
 class TestSimpleDynamoDBResource(TestDynamoDBResource):

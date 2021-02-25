@@ -17,6 +17,7 @@ class TestDynamoDBBase(TestCase):
 
     def setUp(self) -> None:
         os_environ["STAGE"] = "TEST"
+        os_environ["AWS_REGION"] = "eu-central-1"
         os_environ[
             "WRAPPER_CONFIG_FILE"
         ] = f"{dirname(realpath(__file__))}/dynamodb_wrapper_config.json"
