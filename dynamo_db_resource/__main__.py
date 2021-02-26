@@ -3,17 +3,17 @@ from fil_io.select import get_file_list_from_directory
 import json
 
 
-def create_table(schema_file):
+def create_table(schema_file, include_stage_name):
     from dynamo_db_resource.table_existence import (
         create_dynamo_db_table_from_schema,
     )
 
     with open(schema_file, "r") as f:
         schema = json.load(f)
-    create_dynamo_db_table_from_schema(schema)
+    create_dynamo_db_table_from_schema(schema, include_stage_name)
 
 
-def create_table_for_schema_in_directory(directory, tables=None):
+def create_table_for_schema_in_directory(directory, tables=None, include_stage_name: bool = True):
     schemas = get_file_list_from_directory(directory, file_ending=".json")
 
     for schema_file in schemas:
@@ -22,7 +22,7 @@ def create_table_for_schema_in_directory(directory, tables=None):
         else:
             schema_file = Path(schema_file)
             if any(f"{i}.json" == schema_file.name for i in tables):
-                create_table(schema_file)
+                create_table(schema_file, include_stage_name)
 
 
 if __name__ == "__main__":
@@ -57,6 +57,13 @@ if __name__ == "__main__":
     )
 
     __parser.add_argument(
+        "--no_include_stage_name",
+        "-no_stage",
+        help="do not include stage_name in table name",
+        action="store_false"
+    )
+
+    __parser.add_argument(
         "--tables",
         "-t",
         help="which tables to create",
@@ -83,11 +90,8 @@ if __name__ == "__main__":
     os_environ["WRAPPER_CONFIG_FILE"] = __vars["config_file"]
     os_environ["AWS_REGION"] = __vars["region"]
 
-    print(os_environ["AWS_REGION"])
-    print(type(os_environ["AWS_REGION"]))
-
     if __vars["command"] == "create_table":
         if not __vars["tables"]:
-            create_table_for_schema_in_directory(__vars["directory"])
+            create_table_for_schema_in_directory(__vars["directory"], None, __vars["no_include_stage_name"])
         else:
-            create_table_for_schema_in_directory(__vars["directory"], __vars["tables"])
+            create_table_for_schema_in_directory(__vars["directory"], __vars["tables"], __vars["no_include_stage_name"])
