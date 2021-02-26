@@ -2,20 +2,19 @@ from aws_environ_helper import (
     object_with_decimal_to_float,
     object_with_float_to_decimal,
     find_path_values_in_dict,
-    environ
 )
+from os import environ as os_environ
 from string import ascii_lowercase
 from boto3 import resource
 from botocore.exceptions import ClientError
 from copy import deepcopy
-from .resource_config import resource_config
 from aws_serverless_wrapper.database.noSQL._base_class import (
     NoSQLTable,
     AttributeExistsException,
     AttributeNotExistsException,
 )
 
-dynamo_db_resource = resource("dynamodb", **resource_config)
+dynamo_db_resource = resource("dynamodb", **{"region_name": os_environ["AWS_REGION"] if "AWS_REGION" in os_environ else "us-east-1"})
 
 __all__ = ["Table"]
 
@@ -26,9 +25,15 @@ for c1 in ascii_lowercase:
 
 
 class Table(NoSQLTable):
-    def __init__(self, table_name):
+    def __init__(self, table_name, special_resource_config: dict = False):
         super().__init__(table_name)
-        self.__table = dynamo_db_resource.Table(f"{environ['STAGE']}-{table_name}")
+        if special_resource_config:
+            self.__resource = resource("dynamodb", **special_resource_config)
+            self.__resource_config = special_resource_config
+        else:
+            self.__resource = dynamo_db_resource
+            self.__resource_config = {"region_name": os_environ["AWS_REGION"]}
+        self.__table = self.__resource.Table(f"{os_environ['STAGE']}-{table_name}")
 
     @property
     def table(self):
@@ -57,9 +62,9 @@ class Table(NoSQLTable):
     def describe(self):
         from boto3 import client
 
-        dynamo_db_client = client("dynamodb", **resource_config)
+        dynamo_db_client = client("dynamodb", **self.__resource_config)
         response = dynamo_db_client.describe_table(
-            TableName=f"{environ['STAGE']}-{self.name}"
+            TableName=f"{os_environ['STAGE']}-{self.name}"
         )
         return response
 

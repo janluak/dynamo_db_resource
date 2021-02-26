@@ -1,12 +1,7 @@
 import boto3
 from os import environ as os_environ
-if all(key in os_environ for key in ["STAGE", "AWS_REGION"]):
-    stage = os_environ["STAGE"]
-    resource_config = {"region_name": os_environ["AWS_REGION"]}
-else:
-    from aws_environ_helper import environ
-    from .resource_config import resource_config
-    stage = environ['STAGE']
+stage = os_environ["STAGE"]
+resource_config = {"region_name": os_environ["AWS_REGION"]}
 
 __all__ = ["create_dynamo_db_table_from_schema", "delete_dynamo_db_table"]
 
@@ -73,8 +68,6 @@ def create_dynamo_db_table_from_schema(json_schema, include_stage_in_table_name=
 
 
 def delete_dynamo_db_table(table_name: str, add_stage_to_table_name: bool = True, require_confirmation: bool = True):
-    from .resource_config import resource_config
-
     if require_confirmation:
         decision = input(f"Are you sure to delete Dynamo DB table {table_name}\ny/n: ")
         if decision != "y":

@@ -1,10 +1,12 @@
-from aws_environ_helper import environ
-from os import environ as os_environ
-
-__all__ = ["resource_config"]
+__all__ = ["create_resource_config"]
 
 
-def __local_switch():
+def create_resource_config(region: str = "eu-central-1", unittest: bool = False, aws_sam: bool = False) -> dict:
+    if region == "local" and not unittest and not aws_sam:
+        raise TypeError("if local=True either unittest or aws_sam must be true")
+    if unittest and aws_sam:
+        raise TypeError("only unittest or aws_sam may be specified")
+
     __switch_local_docker_env = {
         "UnitTest": "http://localhost:8000",
         "AWS_SAM_LOCAL": "http://docker.for.mac.localhost:8000",
@@ -12,22 +14,13 @@ def __local_switch():
     __switch_db_resource_config = {
         "local": {
             "endpoint_url": __switch_local_docker_env[
-                "UnitTest" if "AWS_SAM_LOCAL" not in environ else "AWS_SAM_LOCAL"
+                "UnitTest" if unittest else "AWS_SAM_LOCAL"
             ],
             "region_name": "dummy",
             "aws_access_key_id": "dummy",
             "aws_secret_access_key": "dummy",
         },
-        "cloud": {"region_name": environ["AWS_REGION"]},
+        "cloud": {"region_name": region},
     }
-    return __switch_db_resource_config[os_environ["ENV"]]
+    return __switch_db_resource_config["cloud" if region != "local" else region]
 
-
-def craft_config():
-    if not all(key in os_environ for key in ["STAGE", "AWS_REGION"]):
-        return __local_switch()
-
-    return {"region_name": os_environ["AWS_REGION"] if "AWS_REGION" in os_environ else environ["AWS_REGION"]}
-
-
-resource_config = craft_config()
