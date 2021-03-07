@@ -683,6 +683,89 @@ class TestDynamoDB(TestDynamoDBBase):
 
         t.delete(**test_item_primary)
 
+    def test_update_with_attribute_return_new_item(self):
+        updated_attribute = {"some_float": 249235.93}
+        from dynamo_db_resource import Table, UpdateReturns
+
+        t = Table(self.table_name)
+
+        t.put(test_item)
+
+        response = t.update_attribute(updated_attribute, returns=UpdateReturns.ALL_NEW, **test_item_primary)
+
+        verification_item = deepcopy(test_item)
+        verification_item.update(updated_attribute)
+
+        self.assertEqual(
+            verification_item, response
+        )
+
+        self.assertEqual(
+            updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+        )
+
+        t.delete(**test_item_primary)
+
+    def test_update_with_attribute_return_new_values(self):
+        updated_attribute = {"some_float": 249235.93}
+        from dynamo_db_resource import Table, UpdateReturns
+
+        t = Table(self.table_name)
+
+        t.put(test_item)
+
+        response = t.update_attribute(updated_attribute, returns=UpdateReturns.UPDATED_NEW, **test_item_primary)
+
+        self.assertEqual(
+            updated_attribute, response
+        )
+
+        self.assertEqual(
+            updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+        )
+
+        t.delete(**test_item_primary)
+
+    def test_update_with_attribute_return_old_values(self):
+        updated_attribute = {"some_float": 249235.93}
+        from dynamo_db_resource import Table, UpdateReturns
+
+        t = Table(self.table_name)
+
+        t.put(test_item)
+
+        response = t.update_attribute(updated_attribute, returns=UpdateReturns.UPDATED_OLD, **test_item_primary)
+
+        self.assertEqual(
+            {"some_float": test_item["some_float"]}, response
+        )
+
+        self.assertEqual(
+            updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+        )
+
+        t.delete(**test_item_primary)
+
+    def test_update_with_attribute_return_old_item(self):
+        updated_attribute = {"some_float": 249235.93}
+        from dynamo_db_resource import Table, UpdateReturns
+
+        t = Table(self.table_name)
+
+        t.put(test_item)
+
+        response = t.update_attribute(updated_attribute, returns=UpdateReturns.ALL_OLD, **test_item_primary)
+
+        self.assertEqual(
+            test_item, response
+        )
+
+        self.assertEqual(
+            updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+        )
+
+        t.delete(**test_item_primary)
+
     def test_update_fail_non_existent_attribute(self):
         updated_attribute = {
             "some_nested_dict": {

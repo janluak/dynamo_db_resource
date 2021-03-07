@@ -200,6 +200,7 @@ class Table(NoSQLTable):
         require_attributes_to_be_missing=False,
         create_item_if_non_existent,
         list_operation=False,
+        returns="NONE",
         new_data,
         **primary_dict,
     ):
@@ -219,6 +220,7 @@ class Table(NoSQLTable):
             "UpdateExpression": expression,
             "ExpressionAttributeValues": values,
             "ExpressionAttributeNames": expression_name_map,
+            "ReturnValues": returns
         }
 
         if conditions := self._build_conditions(
@@ -233,7 +235,8 @@ class Table(NoSQLTable):
             update_dict.update(ConditionExpression=conditions)
 
         try:
-            self.__table.update_item(**update_dict)
+            response = self.__table.update_item(**update_dict)
+            return object_with_decimal_to_float(response["Attributes"])
         except ClientError as CE:
             if CE.response["Error"]["Code"] == "ValidationException":
                 if "document path provided in the update expression is invalid for update" in CE.response[
@@ -296,6 +299,7 @@ class Table(NoSQLTable):
         new_data: dict,
         update_if_existent=False,
         create_item_if_non_existent=False,
+        returns="NONE",
         **primary_dict,
     ):
         self.__general_update(
@@ -303,6 +307,7 @@ class Table(NoSQLTable):
             new_data=new_data,
             require_attributes_to_be_missing=True if not update_if_existent else False,
             create_item_if_non_existent=create_item_if_non_existent,
+            returns=returns
         )
 
     def update_attribute(
@@ -310,15 +315,17 @@ class Table(NoSQLTable):
         new_data,
         set_new_attribute_if_not_existent=False,
         create_item_if_non_existent=False,
+        returns="NONE",
         **primary_dict,
     ):
-        self.__general_update(
+        return self.__general_update(
             **primary_dict,
             new_data=new_data,
             require_attributes_already_present=True
             if not set_new_attribute_if_not_existent
             else False,
             create_item_if_non_existent=create_item_if_non_existent,
+            returns=returns
         )
 
     def update_list_item(self, primary_dict, item_no, **new_data):
@@ -329,6 +336,7 @@ class Table(NoSQLTable):
         new_data,
         set_new_attribute_if_not_existent=False,
         create_item_if_non_existent=False,
+        returns="NONE",
         **primary_dict,
     ):
         self.__general_update(
@@ -339,6 +347,7 @@ class Table(NoSQLTable):
             else True,
             create_item_if_non_existent=create_item_if_non_existent,
             list_operation=True,
+            returns=returns
         )
 
     def update_increment(self, path_of_to_increment, **primary_dict):
