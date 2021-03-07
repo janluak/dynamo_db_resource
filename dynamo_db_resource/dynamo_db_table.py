@@ -302,7 +302,7 @@ class Table(NoSQLTable):
         returns="NONE",
         **primary_dict,
     ):
-        self.__general_update(
+        return self.__general_update(
             **primary_dict,
             new_data=new_data,
             require_attributes_to_be_missing=True if not update_if_existent else False,
@@ -339,7 +339,7 @@ class Table(NoSQLTable):
         returns="NONE",
         **primary_dict,
     ):
-        self.__general_update(
+        return self.__general_update(
             **primary_dict,
             new_data=new_data,
             require_attributes_already_present=False
