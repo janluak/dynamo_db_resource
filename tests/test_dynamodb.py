@@ -813,17 +813,24 @@ class TestDynamoDB(TestDynamoDBBase):
                 "KEY1": {"subKEY4": {"sub4": [{"sub_sub_key": "abc"}]}}
             }
         }
-        from dynamo_db_resource import Table
+        from dynamo_db_resource import Table, UpdateReturns
 
         t = Table(self.table_name)
 
         t.put(test_item)
 
-        t.update_attribute(
+        response = t.update_attribute(
             updated_attribute,
             set_new_attribute_if_not_existent=True,
+            returns=UpdateReturns.ALL_NEW,
             **test_item_primary,
         )
+
+        self.assertEqual(
+            updated_attribute["some_nested_dict"]["KEY1"]["subKEY4"]["sub4"][0],
+            response["some_nested_dict"]["KEY1"]["subKEY4"]["sub4"][0]
+        )
+
 
         self.assertEqual(
             updated_attribute["some_nested_dict"]["KEY1"]["subKEY4"]["sub4"][0],

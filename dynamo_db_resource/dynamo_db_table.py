@@ -266,8 +266,10 @@ class Table(NoSQLTable):
                             "UpdateExpression": expression,
                             "ExpressionAttributeValues": values,
                             "ExpressionAttributeNames": expression_name_map,
+                            "ReturnValues": returns
                         }
-                        self.__table.update_item(**update_dict)
+                        response = self.__table.update_item(**update_dict)
+                        return object_with_decimal_to_float(response["Attributes"])
                     except FileNotFoundError as FNF:
                         if create_item_if_non_existent:
                             item = primary_dict.copy()
