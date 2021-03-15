@@ -95,7 +95,7 @@ class Table(NoSQLTable):
         expression_values = dict()
 
         if not paths_to_new_data or not values_per_path:
-            paths_to_new_data, values_per_path = find_path_values_in_dict(new_data)
+            paths_to_new_data, values_per_path = find_path_values_in_dict(deepcopy(new_data))
 
         if isinstance(list_operation, bool):
             list_operation = [list_operation for i in paths_to_new_data]
@@ -236,7 +236,9 @@ class Table(NoSQLTable):
 
         try:
             response = self.__table.update_item(**update_dict)
-            return object_with_decimal_to_float(response["Attributes"])
+            if "Attributes" in response:
+                return object_with_decimal_to_float(response["Attributes"])
+            return
         except ClientError as CE:
             if CE.response["Error"]["Code"] == "ValidationException":
                 if "document path provided in the update expression is invalid for update" in CE.response[
@@ -269,7 +271,9 @@ class Table(NoSQLTable):
                             "ReturnValues": returns
                         }
                         response = self.__table.update_item(**update_dict)
-                        return object_with_decimal_to_float(response["Attributes"])
+                        if "Attributes" in response:
+                            return object_with_decimal_to_float(response["Attributes"])
+                        return
                     except FileNotFoundError as FNF:
                         if create_item_if_non_existent:
                             item = primary_dict.copy()
@@ -294,6 +298,21 @@ class Table(NoSQLTable):
                         raise FNF
             else:
                 raise CE
+        # except AssertionError as AE:
+        #     try:
+        #         item = self.get(**primary_dict)
+        #         if require_attributes_already_present:
+        #             raise AttributeNotExistsException
+        #         else:
+        #             raise AttributeExistsException
+        #     except FileNotFoundError as FNF:
+        #         if create_item_if_non_existent:
+        #             item = primary_dict.copy()
+        #             item.update(new_data)
+        #             self.put(item)
+        #         else:
+        #             raise FNF
+        #     raise AE
 
     # https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.UpdateExpressions.html
     def add_new_attribute(

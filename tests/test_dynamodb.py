@@ -889,6 +889,32 @@ class TestDynamoDB(TestDynamoDBBase):
 
     @skip("issue in moto: item gets created though condition fails (#3729); working on docker test instance")
     def test_add_attribute_on_non_existing_item_with_creation(self):
+        added_attribute = deepcopy(test_item)
+        added_attribute["some_dict"].update({"key3": {"free_key": "abc"}})
+        added_attribute.pop("primary_partition_key")
+        from dynamo_db_resource import Table
+
+        t = Table(self.table_name)
+
+        t.add_new_attribute(
+            added_attribute, **test_item_primary, create_item_if_non_existent=True
+        )
+
+        added_attribute.update(**test_item_primary)
+        item = t.get(**test_item_primary)
+        self.assertEqual(
+            added_attribute,
+            item
+        )
+
+        scan = t.scan()
+        self.assertEqual(
+            1,
+            len(scan["Items"])
+        )
+
+    @skip("issue in moto: item gets created though condition fails (#3729); working on docker test instance")
+    def test_add_attribute_on_non_existing_item_with_creation_with_validation_error(self):
         added_attribute = {"some_dict": {"key1": "abc"}}
         from dynamo_db_resource import Table
 
@@ -906,6 +932,37 @@ class TestDynamoDB(TestDynamoDBBase):
                 "headers": {"Content-Type": "text/plain"},
             },
             TE.exception.args[0],
+        )
+        scan = t.scan()
+        self.assertEqual(
+            list(),
+            scan["Items"]
+        )
+
+    @skip("issue in moto: item gets created though condition fails (#3729); working on docker test instance")
+    def test_add_attribute_on_non_existing_item_without_creation(self):
+        added_attribute = {"some_dict": {"key1": "abc"}}
+        from dynamo_db_resource import Table
+
+        t = Table(self.table_name)
+
+        with self.assertRaises(FileNotFoundError) as FNF:
+            t.add_new_attribute(
+                added_attribute, **test_item_primary
+            )
+
+        self.assertEqual(
+            {
+                "statusCode": 404,
+                "body": "{'primary_partition_key': 'some_identification_string'} not found in TableForTests",
+                "headers": {"Content-Type": "text/plain"},
+            },
+            FNF.exception.args[0],
+        )
+        scan = t.scan()
+        self.assertEqual(
+            list(),
+            scan["Items"]
         )
 
     def test_append_item(self):

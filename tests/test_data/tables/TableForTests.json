@@ -41,6 +41,10 @@
         "key2": {
           "description": "dictionary with key's value type number",
           "type": "number"
+        },
+        "key3": {
+          "description": "dictionary with no limits in items",
+          "type": "object"
         }
       }
     },
