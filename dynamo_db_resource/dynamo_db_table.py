@@ -84,6 +84,37 @@ class Table(NoSQLTable):
                 ]
 
     @staticmethod
+    def _create_remove_expression(
+        path_to_list: list,
+        list_position_if_list: int = None
+    ):
+
+        expression = "remove "
+        attribute_key_mapping = dict()
+        letter_count = 0
+        def assign_key_to_attribute_path_step(attribute_name, letter_count):
+            if attribute_name not in attribute_key_mapping:
+                attribute_key_mapping[
+                    attribute_name
+                ] = f"#{_value_update_chars[letter_count].upper()}"
+                letter_count += 1
+            return letter_count
+
+        for path in path_to_list:
+            for attribute in path:
+                letter_count = assign_key_to_attribute_path_step(attribute, letter_count)
+                expression += f"{attribute_key_mapping[attribute]}."
+            expression = expression[:-1]
+            expression += ", "
+
+        expression = expression[:-2]
+
+        if list_position_if_list is not None:
+            expression += f"[{list_position_if_list}]"
+
+        return expression, {v: k for k, v in attribute_key_mapping.items()}
+
+    @staticmethod
     def _create_update_expression(
         new_data: dict = None,
         *,
@@ -201,31 +232,44 @@ class Table(NoSQLTable):
         create_item_if_non_existent,
         list_operation=False,
         returns="NONE",
-        new_data,
+        new_data=None,
+        remove_data=None,
+        remove_list_item=None,
         **primary_dict,
     ):
         self._primary_key_checker(primary_dict)
 
-        self._validate_input(new_data)
+        if new_data:
+            self._validate_input(new_data)
 
-        (
-            expression,
-            values,
-            expression_name_map,
-            paths_to_new_data,
-        ) = self._create_update_expression(new_data, list_operation=list_operation)
+            (
+                expression,
+                values,
+                expression_name_map,
+                paths_to_data,
+            ) = self._create_update_expression(new_data, list_operation=list_operation)
 
-        update_dict = {
-            "Key": primary_dict,
-            "UpdateExpression": expression,
-            "ExpressionAttributeValues": values,
-            "ExpressionAttributeNames": expression_name_map,
-            "ReturnValues": returns
-        }
+            update_dict = {
+                "Key": primary_dict,
+                "UpdateExpression": expression,
+                "ExpressionAttributeValues": values,
+                "ExpressionAttributeNames": expression_name_map,
+                "ReturnValues": returns
+            }
+        else:
+            # ToDo check if removal of attribute not required part of required schema
+            expression, expression_name_map = self._create_remove_expression(remove_data, remove_list_item)
+            update_dict = {
+                "Key": primary_dict,
+                "UpdateExpression": expression,
+                "ExpressionAttributeNames": expression_name_map,
+                "ReturnValues": returns
+            }
+            paths_to_data = remove_data
 
         necessary_attribute_paths = list()
         if require_attributes_already_present:
-            necessary_attribute_paths = paths_to_new_data
+            necessary_attribute_paths = paths_to_data
         if not create_item_if_non_existent:
             for k in self.pk:
                 _expression_name_key = _value_update_chars[len(expression_name_map)]
@@ -234,7 +278,7 @@ class Table(NoSQLTable):
 
         if conditions := self._build_conditions(
             existing_attribute_paths=necessary_attribute_paths,
-            not_existing_attribute_paths=paths_to_new_data
+            not_existing_attribute_paths=paths_to_data
             if require_attributes_to_be_missing
             else None,
             expression_name_map=expression_name_map,
@@ -411,15 +455,55 @@ class Table(NoSQLTable):
             else:
                 raise CE
 
-    def remove_attribute(self, path_of_attribute, **primary_dict):
-        # expression "REMOVE path.to.attribute, path.to.attribute2"
-        raise NotImplemented
+    def remove_attribute(self, path_of_attribute: list, **primary_dict):
+        if not isinstance(path_of_attribute[0], list):
+            path_of_attribute = [path_of_attribute]
+        response = self.__general_update(
+            require_attributes_already_present=True,
+            create_item_if_non_existent=False,
+            remove_data=path_of_attribute.copy(),
+            returns="UPDATED_OLD",
+            **primary_dict
+        )
+        return_data = [response for _ in path_of_attribute]
+
+        for index, rd in enumerate(return_data):
+            while path_of_attribute[index]:
+                rd = rd[path_of_attribute[index].pop(0)]
+            return_data[index] = rd
+        response = return_data
+
+        if len(path_of_attribute) == 1:
+            [response] = response
+        return response
 
     def remove_entry_in_list(
-        self, path_to_list, position_to_delete: int, **primary_dict
+        self, path_to_list: list, position_to_delete: int, **primary_dict
     ):
-        # expression "REMOVE path.to.list[position_to_delete]"
-        raise NotImplemented
+        if not isinstance(path_to_list[0], list):
+            path_to_list = [path_to_list]
+        response = self.__general_update(
+            require_attributes_already_present=True,
+            create_item_if_non_existent=False,
+            remove_data=path_to_list.copy(),
+            remove_list_item=position_to_delete,
+            returns="UPDATED_OLD",
+            **primary_dict
+        )
+        return_data = [response for _ in path_to_list]
+
+        try:
+            for index, rd in enumerate(return_data):
+                while path_to_list[index]:
+                    rd = rd[path_to_list[index].pop(0)]
+                return_data[index] = rd[position_to_delete]
+            response = return_data
+        except KeyError:
+            raise IndexError("the given position_to_delete does not exist")
+
+        if len(path_to_list) == 1:
+            [response] = response
+        return response
 
     def delete(self, **primary_dict):
         self._primary_key_checker(primary_dict.keys())

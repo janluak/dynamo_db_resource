@@ -374,6 +374,39 @@ class TestDynamoDBQueryDirectProvisionOfPath(TestDynamoDBQuery):
         self.assertEqual(expected_update_values, calculated_values)
         self.assertEqual(expected_expression_name_mapping, calculated_name_mapping)
 
+    def test_remove_attribute(self):
+        expected_expression = "remove #AA.#AB, #AA.#AC"
+        expected_expression_name_mapping = {
+            "#AA": "parent1",
+            "#AB": "child1",
+            "#AC": "child2"
+        }
+
+        remove_paths = [["parent1", "child1"], ["parent1", "child2"]]
+
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        calculated_expression, calculated_name_mapping = t._create_remove_expression(remove_paths)
+        self.assertEqual(expected_expression_name_mapping, calculated_name_mapping)
+        self.assertEqual(expected_expression, calculated_expression)
+
+    def test_remove_list_entry(self):
+        expected_expression = "remove #AA.#AB[0]"
+        expected_expression_name_mapping = {
+            "#AA": "parent1",
+            "#AB": "child1"
+        }
+
+        remove_path = [["parent1", "child1"]]
+
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        calculated_expression, calculated_name_mapping = t._create_remove_expression(remove_path, 0)
+        self.assertEqual(expected_expression, calculated_expression)
+        self.assertEqual(expected_expression_name_mapping, calculated_name_mapping)
+
 
 class TestDynamoDBQueryConditions(TestDynamoDBQuery):
     def test_no_conditions(self):
@@ -1014,6 +1047,108 @@ class TestDynamoDB(TestDynamoDBBase):
                 0
             ],
         )
+
+    def test_remove_attribute(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+        t.put(test_item)
+
+        path_to_delete = ["some_dict", "key1"]
+        t.remove_attribute(path_to_delete, **test_item_primary)
+
+        item = t.get(**test_item_primary)
+        self.assertNotIn("key1", item["some_dict"])
+
+    def test_remove_attribute_with_return_deleted(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+        t.put(test_item)
+
+        path_to_delete = ["some_dict", "key1"]
+        response = t.remove_attribute(path_to_delete, **test_item_primary)
+        self.assertEqual("value1", response)
+
+    def test_remove_non_existing_attribute(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+        t.put(test_item)
+
+        path_to_delete = ["some_dict", "non_existing_kex"]
+
+        from aws_serverless_wrapper.database.noSQL import AttributeNotExistsException
+
+        with self.assertRaises(AttributeNotExistsException):
+            t.remove_attribute(path_to_delete, **test_item_primary)
+
+    def test_remove_list_entry(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+        t.put(test_item)
+
+        path_to_delete = ["some_array"]
+        item_no_to_delete = 2
+
+        t.remove_entry_in_list(path_to_delete, item_no_to_delete, **test_item_primary)
+
+        item = t.get(**test_item_primary)
+        self.assertEqual(["simple_string", 13], item["some_array"])
+
+    def test_remove_list_entry_return_deleted(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+        t.put(test_item)
+
+        path_to_delete = ["some_array"]
+        item_no_to_delete = 2
+
+        response = t.remove_entry_in_list(
+            path_to_delete,
+            item_no_to_delete,
+            **test_item_primary
+        )
+
+        self.assertEqual(
+            {
+                "KEY1": {
+                    "subKEY1": "subVALUE1",
+                    "subKEY2": 42.24
+                }
+            },
+            response
+        )
+
+        item = t.get(**test_item_primary)
+        self.assertEqual(["simple_string", 13], item["some_array"])
+
+    @skip("not implemented: check on item in lists exists")
+    def test_remove_non_existing_list_entry(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+        t.put(test_item)
+
+        path_to_delete = ["some_array"]
+        item_no_to_delete = 5
+
+        from aws_serverless_wrapper.database.noSQL import AttributeNotExistsException
+
+        with self.assertRaises(AttributeNotExistsException):
+            t.remove_entry_in_list(path_to_delete, item_no_to_delete, **test_item_primary)
+
+    def test_remove_list_entry_return_deleted_on_non_existent_item(self):
+        from dynamo_db_resource import Table, UpdateReturns
+        t = Table(self.table_name)
+        t.put(test_item)
+
+        path_to_delete = ["some_array"]
+        item_no_to_delete = 6
+
+        with self.assertRaises(AttributeError):
+            t.remove_entry_in_list(
+                path_to_delete,
+                item_no_to_delete,
+                **test_item_primary
+            )
+        self.assertEqual(t.get(**test_item_primary), test_item)
 
     def test_scan_and_truncate(self):
         from dynamo_db_resource import Table
