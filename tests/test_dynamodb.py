@@ -939,7 +939,6 @@ class TestDynamoDB(TestDynamoDBBase):
             scan["Items"]
         )
 
-    @skip("issue in moto: item gets created though condition fails (#3729); working on docker test instance")
     def test_add_attribute_on_non_existing_item_without_creation(self):
         added_attribute = {"some_dict": {"key1": "abc"}}
         from dynamo_db_resource import Table

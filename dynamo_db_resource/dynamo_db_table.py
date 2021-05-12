@@ -223,10 +223,17 @@ class Table(NoSQLTable):
             "ReturnValues": returns
         }
 
+        necessary_attribute_paths = list()
+        if require_attributes_already_present:
+            necessary_attribute_paths = paths_to_new_data
+        if not create_item_if_non_existent:
+            for k in self.pk:
+                _expression_name_key = _value_update_chars[len(expression_name_map)]
+                expression_name_map[f"#{_expression_name_key.upper()}"] = k
+                necessary_attribute_paths.append([k])
+
         if conditions := self._build_conditions(
-            existing_attribute_paths=paths_to_new_data
-            if require_attributes_already_present
-            else None,
+            existing_attribute_paths=necessary_attribute_paths,
             not_existing_attribute_paths=paths_to_new_data
             if require_attributes_to_be_missing
             else None,
