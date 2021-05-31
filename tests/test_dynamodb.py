@@ -811,7 +811,7 @@ class TestDynamoDB(TestDynamoDBBase):
 
         t.put(test_item)
 
-        from aws_serverless_wrapper.database.noSQL import AttributeNotExistsException
+        from dynamo_db_resource.exceptions import AttributeNotExistsException
 
         with self.assertRaises(AttributeNotExistsException):
             t.update_attribute(updated_attribute, **test_item_primary)
@@ -899,7 +899,7 @@ class TestDynamoDB(TestDynamoDBBase):
 
         t.put(test_item)
 
-        from aws_serverless_wrapper.database.noSQL import AttributeExistsException
+        from dynamo_db_resource.exceptions import AttributeExistsException
 
         with self.assertRaises(AttributeExistsException):
             t.add_new_attribute(added_attribute, **test_item_primary)
@@ -1030,7 +1030,7 @@ class TestDynamoDB(TestDynamoDBBase):
         changed_item["some_nested_dict"]["KEY1"].update({"subKEY4": dict()})
         t.put(changed_item)
 
-        from aws_serverless_wrapper.database.noSQL import AttributeNotExistsException
+        from dynamo_db_resource.exceptions import AttributeNotExistsException
 
         with self.assertRaises(AttributeNotExistsException):
             t.update_append_list(updated_attribute, **test_item_primary)
@@ -1075,7 +1075,7 @@ class TestDynamoDB(TestDynamoDBBase):
 
         path_to_delete = ["some_dict", "non_existing_kex"]
 
-        from aws_serverless_wrapper.database.noSQL import AttributeNotExistsException
+        from dynamo_db_resource.exceptions import AttributeNotExistsException
 
         with self.assertRaises(AttributeNotExistsException):
             t.remove_attribute(path_to_delete, **test_item_primary)
@@ -1129,7 +1129,7 @@ class TestDynamoDB(TestDynamoDBBase):
         path_to_delete = ["some_array"]
         item_no_to_delete = 5
 
-        from aws_serverless_wrapper.database.noSQL import AttributeNotExistsException
+        from dynamo_db_resource.exceptions import AttributeNotExistsException
 
         with self.assertRaises(AttributeNotExistsException):
             t.remove_entry_in_list(path_to_delete, item_no_to_delete, **test_item_primary)
@@ -1142,7 +1142,7 @@ class TestDynamoDB(TestDynamoDBBase):
         path_to_delete = ["some_array"]
         item_no_to_delete = 6
 
-        with self.assertRaises(AttributeError):
+        with self.assertRaises(IndexError):
             t.remove_entry_in_list(
                 path_to_delete,
                 item_no_to_delete,

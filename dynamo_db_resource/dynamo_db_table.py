@@ -8,11 +8,8 @@ from string import ascii_lowercase
 from boto3 import resource
 from botocore.exceptions import ClientError
 from copy import deepcopy
-from aws_serverless_wrapper.database.noSQL._base_class import (
-    NoSQLTable,
-    AttributeExistsException,
-    AttributeNotExistsException,
-)
+from ._base_class import NoSQLTable
+from .exceptions import AttributeExistsException, AttributeNotExistsException
 
 dynamo_db_resource = resource("dynamodb", **{"region_name": os_environ["AWS_REGION"] if "AWS_REGION" in os_environ else "us-east-1"})
 
