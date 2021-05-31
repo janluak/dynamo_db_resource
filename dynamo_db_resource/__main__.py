@@ -77,13 +77,6 @@ if __name__ == "__main__":
         default="../test_data/tables/",
     )
 
-    __parser.add_argument(
-        "--config_file",
-        "-c",
-        help="path of the configuration file for aws_environ_helper",
-        default="./dynamodb_wrapper_config.json",
-    )
-
     __vars = vars(__parser.parse_args())
     os_environ["ENV"] = __vars["environment"]
     os_environ["STAGE"] = __vars["stage"].upper()

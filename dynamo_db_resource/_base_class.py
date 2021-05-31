@@ -15,9 +15,7 @@ class NoSQLTable(ABC):
 
         self.__schema_validator = SchemaValidator(
             **{
-                environ["WRAPPER_DATABASE"]["noSQL"]["SCHEMA_ORIGIN"].lower(): environ[
-                    "WRAPPER_DATABASE"
-                ]["noSQL"]["SCHEMA_DIRECTORY"]
+                environ["DYNAMO_DB_RESOURCE_SCHEMA_ORIGIN"].lower(): environ["DYNAMO_DB_RESOURCE_SCHEMA_DIRECTORY"]
                 + self.__table_name
             }
         )

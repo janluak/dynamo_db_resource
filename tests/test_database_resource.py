@@ -16,9 +16,8 @@ class TestDynamoDBResource(TestCase):
     def setUpClass(cls) -> None:
         os_environ["STAGE"] = "TEST"
         os_environ["AWS_REGION"] = "eu-central-1"
-        os_environ[
-            "WRAPPER_CONFIG_FILE"
-        ] = f"{dirname(realpath(__file__))}/dynamodb_wrapper_config.json"
+        os_environ["DYNAMO_DB_RESOURCE_SCHEMA_ORIGIN"] = "file"
+        os_environ["DYNAMO_DB_RESOURCE_SCHEMA_DIRECTORY"] = "test_data/tables/"
 
         cls.actual_cwd = getcwd()
         chdir(dirname(realpath(__file__)))
@@ -27,7 +26,8 @@ class TestDynamoDBResource(TestCase):
     def tearDownClass(cls) -> None:
         chdir(cls.actual_cwd)
 
-        del os_environ["WRAPPER_CONFIG_FILE"]
+        del os_environ["DYNAMO_DB_RESOURCE_SCHEMA_ORIGIN"]
+        del os_environ["DYNAMO_DB_RESOURCE_SCHEMA_DIRECTORY"]
 
     def setUp(self) -> None:
         from dynamo_db_resource.table_existence import (
