@@ -4,7 +4,7 @@ If development mode (=changes in package code directly delivered to python) `pip
 """
 
 from setuptools import setup, find_packages
-from aws_environ_helper import __version__
+from dynamo_db_resource import __version__
 
 # https://python-packaging.readthedocs.io/en/latest/minimal.html
 
@@ -30,6 +30,6 @@ setup(
         "Programming Language :: Python :: 3.8",
     ],
     # https://pypi.org/pypi?%3Aaction=list_classifiers
-    install_requires=["boto3", "botocore", "aws_serverless_wrapper"],
+    install_requires=["boto3", "botocore", "aws_schema"],
     extra_require={"testing": ["pytest", "fil_io", "moto>=2"]},
 )
