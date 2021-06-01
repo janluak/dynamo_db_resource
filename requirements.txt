@@ -1,6 +1,4 @@
 boto3
 botocore
-aws_environ_helper
 jsonschema
-aws_environ_helper
 aws_schema

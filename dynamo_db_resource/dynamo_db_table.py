@@ -1,7 +1,7 @@
-from aws_environ_helper import (
-    object_with_decimal_to_float,
+from aws_schema.nested_dict_helper import find_path_values_in_dict
+from ._number_types_in_objects import (
     object_with_float_to_decimal,
-    find_path_values_in_dict,
+    object_with_decimal_to_float
 )
 from os import environ as os_environ
 from string import ascii_lowercase
@@ -298,7 +298,7 @@ class Table(NoSQLTable):
                     in CE.response["Error"]["Message"]
                     and not require_attributes_already_present
                 ):
-                    from aws_environ_helper import find_new_paths_in_dict
+                    from aws_schema.nested_dict_helper import find_new_paths_in_dict
 
                     try:
                         item = self.get(**primary_dict)

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from inspect import stack
 from jsonschema.exceptions import ValidationError
-from aws_environ_helper import environ
+from os import environ as os_environ
 from aws_schema import SchemaValidator
 
 from .exceptions import CustomExceptionRaiser
@@ -15,7 +15,7 @@ class NoSQLTable(ABC):
 
         self.__schema_validator = SchemaValidator(
             **{
-                environ["DYNAMO_DB_RESOURCE_SCHEMA_ORIGIN"].lower(): environ["DYNAMO_DB_RESOURCE_SCHEMA_DIRECTORY"]
+                os_environ["DYNAMO_DB_RESOURCE_SCHEMA_ORIGIN"].lower(): os_environ["DYNAMO_DB_RESOURCE_SCHEMA_DIRECTORY"]
                 + self.__table_name
             }
         )
