@@ -15,6 +15,7 @@ setup(
     name="dynamo_db_resource",
     version=__version__,
     description="abstraction of Dynamo DB for AWS Serverless Wrapper",
+    url="https://github.com/janluak/dynamo_db_resource",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Jan Lukas Braje",
