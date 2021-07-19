@@ -5,9 +5,24 @@ from os import chdir, getcwd
 from fil_io.json import load_single
 from copy import deepcopy
 from moto import mock_dynamodb2
+from pytest import fixture
 
 test_item = load_single(f"{dirname(realpath(__file__))}/test_data/items/test_item.json")
 test_item_primary = {"primary_partition_key": "some_identification_string"}
+
+
+@fixture
+def set_stack_os_environ():
+    os_environ["STAGE"] = "TEST"
+    os_environ["DYNAMO_DB_RESOURCE_STACK_NAME"] = "someStack"
+    yield
+    del os_environ["STAGE"]
+    del os_environ["DYNAMO_DB_RESOURCE_STACK_NAME"]
+
+
+def test_stack_name_in_table_name(set_stack_os_environ):
+    from dynamo_db_resource.dynamo_db_table import _cast_table_name
+    assert _cast_table_name("TableName") == "TEST-someStack-TableName"
 
 
 @mock_dynamodb2

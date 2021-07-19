@@ -21,6 +21,16 @@ for c1 in ascii_lowercase:
         _value_update_chars.append(c1 + c2)
 
 
+def _cast_table_name(table_name: str) -> str:
+    name_components = list()
+    if "DYNAMO_DB_RESOURCE_NO_STAGE_IN_NAME" not in os_environ:
+        name_components.append(os_environ['STAGE'])
+    if "DYNAMO_DB_RESOURCE_STACK_NAME" in os_environ:
+        name_components.append(os_environ["DYNAMO_DB_RESOURCE_STACK_NAME"])
+    name_components.append(table_name)
+    return "-".join(name_components)
+
+
 class Table(NoSQLTable):
     def __init__(self, table_name, special_resource_config: dict = False):
         super().__init__(table_name)
@@ -30,7 +40,7 @@ class Table(NoSQLTable):
         else:
             self.__resource = dynamo_db_resource
             self.__resource_config = {"region_name": os_environ["AWS_REGION"]}
-        self.__table = self.__resource.Table(f"{os_environ['STAGE']}-{table_name}")
+        self.__table = self.__resource.Table(_cast_table_name(table_name))
 
     @property
     def table(self):
