@@ -23,7 +23,7 @@ for c1 in ascii_lowercase:
 
 def _cast_table_name(table_name: str) -> str:
     name_components = list()
-    if "DYNAMO_DB_RESOURCE_NO_STAGE_IN_NAME" not in os_environ:
+    if "DYNAMO_DB_RESOURCE_STAGE_NAME" in os_environ:
         name_components.append(os_environ['STAGE'])
     if "DYNAMO_DB_RESOURCE_STACK_NAME" in os_environ:
         name_components.append(os_environ["DYNAMO_DB_RESOURCE_STACK_NAME"])

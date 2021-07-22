@@ -1,4 +1,4 @@
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 from .dynamo_db_table import Table
 from .resource import database_resource
