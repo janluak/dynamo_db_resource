@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TableWithRange",
+  "description": "This is an example schema for creating a dynamo_db table/validating items against",
+  "type": "object",
+  "additionalProperties": false,
+  "default": [
+    "primary_partition_key",
+    "range_key"
+  ],
+  "properties": {
+    "primary_partition_key": {
+      "description": "the primary partition key of the dynamo db",
+      "type": "string"
+    },
+    "range_key": {
+      "description": "range_key of the dynamo db",
+      "type": "string"
+    },
+    "some_int": {
+      "description": "some key containing any integers",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "primary_partition_key",
+    "range_key",
+    "some_int"
+  ]
+}

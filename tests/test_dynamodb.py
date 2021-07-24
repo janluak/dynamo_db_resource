@@ -504,6 +504,35 @@ class TestDynamoDBQueryConditions(TestDynamoDBQuery):
 
 
 class TestDynamoDB(TestDynamoDBBase):
+    def test_cast_primary_key(self):
+        from dynamo_db_resource import Table
+        t = Table("TableForTests")
+
+        self.assertEqual({"primary_partition_key": "pk"}, t._cast_primary_keys("pk"))
+        self.assertEqual({"primary_partition_key": "pk"}, t._cast_primary_keys({"primary_partition_key": "pk"}))
+        self.assertEqual(
+            [{"primary_partition_key": "pk1"}, {"primary_partition_key": "pk2"}],
+            t._cast_primary_keys(["pk1", "pk2"], batch=True)
+        )
+        self.assertEqual(
+            [{"primary_partition_key": "pk1"}, {"primary_partition_key": "pk2"}],
+            t._cast_primary_keys([{"primary_partition_key": "pk1"}, {"primary_partition_key": "pk2"}], batch=True)
+        )
+
+        tr = Table("TableWithRange")
+        expected_primary = {"primary_partition_key": "pk", "range_key": "rk"}
+        self.assertEqual(expected_primary, tr._cast_primary_keys("pk", "rk"))
+        self.assertEqual(expected_primary, tr._cast_primary_keys({"primary_partition_key": "pk", "range_key": "rk"}))
+        self.assertEqual(
+            [{"primary_partition_key": "pk1", "range_key": "rk1"}, {"primary_partition_key": "pk1", "range_key": "rk2"}],
+            tr._cast_primary_keys([["pk1", "rk1"], ["pk1", "rk2"]], batch=True)
+        )
+        self.assertEqual(
+            [{"primary_partition_key": "pk1", "range_key": "rk1"}, {"primary_partition_key": "pk1", "range_key": "rk2"}],
+            tr._cast_primary_keys([{"primary_partition_key": "pk1", "range_key": "rk1"}, {"primary_partition_key": "pk1", "range_key": "rk2"}], batch=True)
+        )
+
+
     def test_put(self):
         from dynamo_db_resource import Table
 
@@ -1204,3 +1233,50 @@ class TestDynamoDB(TestDynamoDBBase):
         t.truncate()
         response = t.scan()
         self.assertEqual(list(), response["Items"])
+
+    def test_batch_get_single_primary(self):
+        from dynamo_db_resource import Table
+
+        t = Table(self.table_name)
+        t.put(test_item)
+        second_test_item = deepcopy(test_item)
+        second_test_item["primary_partition_key"] = "second_identification_string"
+        t.put(second_test_item)
+
+        response = t.batch_get(["some_identification_string", "second_identification_string"])
+        self.assertEqual(
+            {"some_identification_string": test_item, "second_identification_string": second_test_item},
+            response
+        )
+
+
+class TestDynamoDBBatch(TestDynamoDBBase):
+    table_name = "TableWithRange"
+
+    def test_batch_get_with_range_key(self):
+        from dynamo_db_resource import Table
+
+        t = Table(self.table_name)
+        file_names = ["test_range_item-1_1.json", "test_range_item-1_2.json", "test_range_item-2_1.json"]
+        for file_name in file_names:
+            t.put(load_single(f"{dirname(realpath(__file__))}/test_data/items/{file_name}"))
+
+        response = t.batch_get([
+            ["first_key", "range1"],
+            {"primary_partition_key": "second_key", "range_key": "range1"}
+        ])
+        self.assertEqual(
+            {
+                ('first_key', 'range1'): {
+                    'primary_partition_key': 'first_key',
+                    'range_key': 'range1',
+                    'some_int': 1
+                },
+                ('second_key', 'range1'): {
+                    'primary_partition_key': 'second_key',
+                    'range_key': 'range1',
+                    'some_int': 1
+                }
+             },
+            response
+        )

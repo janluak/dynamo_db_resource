@@ -10,6 +10,7 @@ from botocore.exceptions import ClientError
 from copy import deepcopy
 from ._base_class import NoSQLTable
 from .exceptions import AttributeExistsException, AttributeNotExistsException
+from typing import Iterable
 
 dynamo_db_resource = resource("dynamodb", **{"region_name": os_environ["AWS_REGION"] if "AWS_REGION" in os_environ else "us-east-1"})
 
@@ -66,6 +67,25 @@ class Table(NoSQLTable):
         return " and ".join(
             [f"attribute_exists({'.'.join(path)})" for path in paths_to_attributes]
         )
+
+    def _cast_primary_keys(self, *primary_data, batch=False):
+        if not batch:
+            if len(primary_data) == 2 and not isinstance(primary_data, str):
+                return {self.pk[i]: primary_data[i] for i in range(2)}
+            if isinstance(primary_data[0], dict):
+                return primary_data[0]
+            if isinstance(primary_data[0], str):
+                return {self.pk[0]: primary_data[0]}
+        casted_keys = list()
+        for item in primary_data:
+            for i in item:
+                if isinstance(i, dict):
+                    casted_keys.append(i)
+                elif isinstance(i, str):
+                    casted_keys.append({self.pk[0]: i})
+                elif isinstance(i, Iterable):
+                    casted_keys.append(dict(zip(self.pk, i)))
+        return casted_keys
 
     def describe(self):
         from boto3 import client
@@ -533,3 +553,31 @@ class Table(NoSQLTable):
         with self.__table.batch_writer() as batch:
             for item in self.scan()["Items"]:
                 batch.delete_item(Key={key: item[key] for key in self.pk})
+
+    def batch_get(self, primary_keys: Iterable) -> object:
+        """
+        get all items with given primary keys
+
+        Parameters
+        ----------
+        primary_keys : Iterable
+            primary keys to retrieve items for
+
+        Returns
+        -------
+        object with primary_key as key and item as value
+
+        """
+        primary_keys = self._cast_primary_keys(primary_keys, batch=True)
+
+        response = dynamo_db_resource.batch_get_item(RequestItems={
+            self.__table_name: {
+                "Keys": primary_keys
+            }
+        })
+        object_list = object_with_decimal_to_float(response["Responses"][self.__table_name])
+        if len(self.pk) == 1:
+            return {item[self.pk[0]]: item for item in object_list}
+        return {(item[self.pk[0]], item[self.pk[1]]): item for item in object_list}
+
+
