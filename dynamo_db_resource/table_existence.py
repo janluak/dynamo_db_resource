@@ -1,6 +1,8 @@
 import boto3
 from os import environ as os_environ
-stage = os_environ["STAGE"]
+from .dynamo_db_table import _cast_table_name
+stage = os_environ.get("DYNAMO_DB_RESOURCE_STAGE_NAME")
+stack = os_environ.get("DYNAMO_DB_RESOURCE_STACK_NAME")
 resource_config = {"region_name": os_environ["AWS_REGION"]}
 
 __all__ = ["create_dynamo_db_table_from_schema", "delete_dynamo_db_table"]
@@ -41,15 +43,14 @@ def _parse_json_schema_2_dynamo_db_schema(json_schema):
     return table_name, attribute_definitions, key_schemas
 
 
-def create_dynamo_db_table_from_schema(json_schema, include_stage_in_table_name=True):
+def create_dynamo_db_table_from_schema(json_schema):
     (
         table_name,
         attribute_definitions,
         key_schemas,
     ) = _parse_json_schema_2_dynamo_db_schema(json_schema)
 
-    if include_stage_in_table_name:
-        table_name = f"{stage}-{table_name}"
+    table_name = _cast_table_name(table_name)
 
     ddb = boto3.resource("dynamodb", **resource_config)
     try:
@@ -67,14 +68,13 @@ def create_dynamo_db_table_from_schema(json_schema, include_stage_in_table_name=
         pass
 
 
-def delete_dynamo_db_table(table_name: str, add_stage_to_table_name: bool = True, require_confirmation: bool = True):
+def delete_dynamo_db_table(table_name: str, require_confirmation: bool = True):
     if require_confirmation:
         decision = input(f"Are you sure to delete Dynamo DB table {table_name}\ny/n: ")
         if decision != "y":
             return
 
-    if add_stage_to_table_name:
-        table_name = f"{stage}-{table_name}"
+    table_name = _cast_table_name(table_name)
 
     ddb = boto3.client("dynamodb", **resource_config)
     ddb.delete_table(TableName=table_name)

@@ -24,7 +24,7 @@ for c1 in ascii_lowercase:
 def _cast_table_name(table_name: str) -> str:
     name_components = list()
     if "DYNAMO_DB_RESOURCE_STAGE_NAME" in os_environ:
-        name_components.append(os_environ['STAGE'])
+        name_components.append(os_environ['DYNAMO_DB_RESOURCE_STAGE_NAME'])
     if "DYNAMO_DB_RESOURCE_STACK_NAME" in os_environ:
         name_components.append(os_environ["DYNAMO_DB_RESOURCE_STACK_NAME"])
     name_components.append(table_name)
@@ -40,7 +40,8 @@ class Table(NoSQLTable):
         else:
             self.__resource = dynamo_db_resource
             self.__resource_config = {"region_name": os_environ["AWS_REGION"]}
-        self.__table = self.__resource.Table(_cast_table_name(table_name))
+        self.__table_name = _cast_table_name(table_name)
+        self.__table = self.__resource.Table(self.__table_name)
 
     @property
     def table(self):
@@ -71,7 +72,7 @@ class Table(NoSQLTable):
 
         dynamo_db_client = client("dynamodb", **self.__resource_config)
         response = dynamo_db_client.describe_table(
-            TableName=f"{os_environ['STAGE']}-{self.name}"
+            TableName=self.__table_name
         )
         return response
 

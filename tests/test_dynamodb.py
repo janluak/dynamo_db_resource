@@ -13,16 +13,33 @@ test_item_primary = {"primary_partition_key": "some_identification_string"}
 
 @fixture
 def set_stack_os_environ():
-    os_environ["STAGE"] = "TEST"
+    os_environ["DYNAMO_DB_RESOURCE_STAGE_NAME"] = "TEST"
     os_environ["DYNAMO_DB_RESOURCE_STACK_NAME"] = "someStack"
     yield
-    del os_environ["STAGE"]
+    del os_environ["DYNAMO_DB_RESOURCE_STAGE_NAME"]
     del os_environ["DYNAMO_DB_RESOURCE_STACK_NAME"]
+
+
+@fixture
+def set_stage_os_environ():
+    os_environ["DYNAMO_DB_RESOURCE_STAGE_NAME"] = "TEST"
+    yield
+    del os_environ["DYNAMO_DB_RESOURCE_STAGE_NAME"]
 
 
 def test_stack_name_in_table_name(set_stack_os_environ):
     from dynamo_db_resource.dynamo_db_table import _cast_table_name
     assert _cast_table_name("TableName") == "TEST-someStack-TableName"
+
+
+def test_stage_name_in_table_name(set_stage_os_environ):
+    from dynamo_db_resource.dynamo_db_table import _cast_table_name
+    assert _cast_table_name("TableName") == "TEST-TableName"
+
+
+def test_no_additional_name_in_table_name():
+    from dynamo_db_resource.dynamo_db_table import _cast_table_name
+    assert _cast_table_name("TableName") == "TableName"
 
 
 @mock_dynamodb2
