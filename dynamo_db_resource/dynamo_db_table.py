@@ -562,7 +562,7 @@ class Table(NoSQLTable):
             for item in self.scan()["Items"]:
                 batch.delete_item(Key={key: item[key] for key in self.pk})
 
-    def batch_get(self, primary_keys: Iterable) -> object:
+    def batch_get(self, primary_keys: Iterable) -> dict:
         """
         get all items with given primary keys
 
