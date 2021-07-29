@@ -1120,12 +1120,12 @@ class TestDynamoDB(TestDynamoDBBase):
         self.assertNotIn("key1", item["some_dict"])
 
     def test_remove_attribute_with_return_deleted(self):
-        from dynamo_db_resource import Table
+        from dynamo_db_resource import Table, UpdateReturns
         t = Table(self.table_name)
         t.put(test_item)
 
         path_to_delete = ["some_dict", "key1"]
-        response = t.remove_attribute(path_to_delete, **test_item_primary)
+        response = t.remove_attribute(path_to_delete, returns=UpdateReturns.DELETED, **test_item_primary)
         self.assertEqual("value1", response)
 
     def test_remove_non_existing_attribute(self):
@@ -1154,7 +1154,7 @@ class TestDynamoDB(TestDynamoDBBase):
         self.assertEqual(["simple_string", 13], item["some_array"])
 
     def test_remove_list_entry_return_deleted(self):
-        from dynamo_db_resource import Table
+        from dynamo_db_resource import Table, UpdateReturns
         t = Table(self.table_name)
         t.put(test_item)
 
@@ -1164,6 +1164,7 @@ class TestDynamoDB(TestDynamoDBBase):
         response = t.remove_entry_in_list(
             path_to_delete,
             item_no_to_delete,
+            returns=UpdateReturns.DELETED,
             **test_item_primary
         )
 
@@ -1189,26 +1190,8 @@ class TestDynamoDB(TestDynamoDBBase):
         path_to_delete = ["some_array"]
         item_no_to_delete = 5
 
-        from dynamo_db_resource.exceptions import AttributeNotExistsException
-
-        with self.assertRaises(AttributeNotExistsException):
-            t.remove_entry_in_list(path_to_delete, item_no_to_delete, **test_item_primary)
-
-    def test_remove_list_entry_return_deleted_on_non_existent_item(self):
-        from dynamo_db_resource import Table, UpdateReturns
-        t = Table(self.table_name)
-        t.put(test_item)
-
-        path_to_delete = ["some_array"]
-        item_no_to_delete = 6
-
         with self.assertRaises(IndexError):
-            t.remove_entry_in_list(
-                path_to_delete,
-                item_no_to_delete,
-                **test_item_primary
-            )
-        self.assertEqual(t.get(**test_item_primary), test_item)
+            t.remove_entry_in_list(path_to_delete, item_no_to_delete, **test_item_primary)
 
     def test_scan_and_truncate(self):
         from dynamo_db_resource import Table

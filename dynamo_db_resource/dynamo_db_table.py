@@ -14,7 +14,20 @@ from typing import Iterable
 
 dynamo_db_resource = resource("dynamodb", **{"region_name": os_environ["AWS_REGION"] if "AWS_REGION" in os_environ else "us-east-1"})
 
-__all__ = ["Table"]
+__all__ = ["Table", "UpdateReturns"]
+
+
+class UpdateReturns:
+    """
+    contains the options for possible return values if updating an item
+    """
+    NONE = "NONE"
+    ALL_OLD = "ALL_OLD"
+    UPDATED_OLD = "UPDATED_OLD"
+    ALL_NEW = "ALL_NEW"
+    UPDATED_NEW = "UPDATED_NEW"
+    DELETED = "DELETED"
+
 
 _value_update_chars = list()
 for c1 in ascii_lowercase:
@@ -291,9 +304,9 @@ class Table(NoSQLTable):
                 "Key": primary_dict,
                 "UpdateExpression": expression,
                 "ExpressionAttributeNames": expression_name_map,
-                "ReturnValues": returns
+                "ReturnValues": returns if not UpdateReturns.DELETED else UpdateReturns.UPDATED_OLD
             }
-            paths_to_data = remove_data
+            paths_to_data = remove_data.copy()
 
         necessary_attribute_paths = list()
         if require_attributes_already_present:
@@ -313,10 +326,27 @@ class Table(NoSQLTable):
         ):
             update_dict.update(ConditionExpression=conditions)
 
+        def return_only_deleted(resp):
+            return_data = [resp for _ in remove_data]
+            for index, rd in enumerate(return_data):
+                while remove_data[index]:
+                    rd = rd[remove_data[index].pop(0)]
+                    try:
+                        return_data[index] = rd[remove_list_item] if remove_list_item else rd
+                    except KeyError:
+                        raise IndexError("the given position_to_delete does not exist")
+                resp = return_data
+            if len(remove_data) == 1:
+                [resp] = resp
+            return resp
+
         try:
             response = self.__table.update_item(**update_dict)
             if "Attributes" in response:
-                return object_with_decimal_to_float(response["Attributes"])
+                response = object_with_decimal_to_float(response["Attributes"])
+                if returns == UpdateReturns.DELETED and remove_data:
+                    response = return_only_deleted(response)
+                return response
             return
         except ClientError as CE:
             if CE.response["Error"]["Code"] == "ValidationException":
@@ -351,7 +381,10 @@ class Table(NoSQLTable):
                         }
                         response = self.__table.update_item(**update_dict)
                         if "Attributes" in response:
-                            return object_with_decimal_to_float(response["Attributes"])
+                            response = object_with_decimal_to_float(response["Attributes"])
+                            if returns == UpdateReturns.DELETED and remove_data:
+                                response = return_only_deleted(response)
+                            return response
                         return
                     except FileNotFoundError as FNF:
                         if create_item_if_non_existent:
@@ -483,55 +516,30 @@ class Table(NoSQLTable):
             else:
                 raise CE
 
-    def remove_attribute(self, path_of_attribute: list, **primary_dict):
+    def remove_attribute(self, path_of_attribute: list,  returns="NONE", **primary_dict):
         if not isinstance(path_of_attribute[0], list):
             path_of_attribute = [path_of_attribute]
-        response = self.__general_update(
+        return self.__general_update(
             require_attributes_already_present=True,
             create_item_if_non_existent=False,
             remove_data=path_of_attribute.copy(),
-            returns="UPDATED_OLD",
+            returns=returns,
             **primary_dict
         )
-        return_data = [response for _ in path_of_attribute]
-
-        for index, rd in enumerate(return_data):
-            while path_of_attribute[index]:
-                rd = rd[path_of_attribute[index].pop(0)]
-            return_data[index] = rd
-        response = return_data
-
-        if len(path_of_attribute) == 1:
-            [response] = response
-        return response
 
     def remove_entry_in_list(
-        self, path_to_list: list, position_to_delete: int, **primary_dict
+        self, path_to_list: list, position_to_delete: int, returns="NONE", **primary_dict
     ):
         if not isinstance(path_to_list[0], list):
             path_to_list = [path_to_list]
-        response = self.__general_update(
+        return self.__general_update(
             require_attributes_already_present=True,
             create_item_if_non_existent=False,
             remove_data=path_to_list.copy(),
             remove_list_item=position_to_delete,
-            returns="UPDATED_OLD",
+            returns=returns,
             **primary_dict
         )
-        return_data = [response for _ in path_to_list]
-
-        try:
-            for index, rd in enumerate(return_data):
-                while path_to_list[index]:
-                    rd = rd[path_to_list[index].pop(0)]
-                return_data[index] = rd[position_to_delete]
-            response = return_data
-        except KeyError:
-            raise IndexError("the given position_to_delete does not exist")
-
-        if len(path_to_list) == 1:
-            [response] = response
-        return response
 
     def delete(self, **primary_dict):
         self._primary_key_checker(primary_dict.keys())
