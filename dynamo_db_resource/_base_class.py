@@ -3,6 +3,7 @@ from inspect import stack
 from jsonschema.exceptions import ValidationError
 from os import environ as os_environ
 from aws_schema import SchemaValidator
+from collections import Iterable
 
 from .exceptions import CustomExceptionRaiser
 
@@ -139,4 +140,8 @@ class NoSQLTable(ABC):
 
     @abstractmethod
     def truncate(self) -> dict:
+        pass
+
+    @abstractmethod
+    def batch_get(self, primary_keys: Iterable) -> dict:
         pass
