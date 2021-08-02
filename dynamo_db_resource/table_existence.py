@@ -1,74 +1,33 @@
 import boto3
 from os import environ as os_environ
 from .dynamo_db_table import _cast_table_name
-stage = os_environ.get("DYNAMO_DB_RESOURCE_STAGE_NAME")
-stack = os_environ.get("DYNAMO_DB_RESOURCE_STACK_NAME")
-resource_config = {"region_name": os_environ["AWS_REGION"]}
+from ._schema import _json_schema_2_dynamo_db_type_switch
 
-__all__ = ["create_dynamo_db_table_from_schema", "delete_dynamo_db_table"]
-
-_json_schema_2_dynamo_db_type_switch = {
-    "string": "S",
-    "array": "L",
-    "object": "M",
-    "boolean": "BOOL",
-    "number": "N",
-    "integer": "N",
-}
+__all__ = ["create_dynamo_db_table_from_schema", "delete_dynamo_db_table", "convert_schema_to_infrastructure_code"]
 
 
-def _parse_json_schema_2_dynamo_db_schema(json_schema):
-    table_name = json_schema["title"]
-    attribute_definitions = [
-        {
-            "AttributeName": key,
-            "AttributeType": _json_schema_2_dynamo_db_type_switch[
-                json_schema["properties"][key]["type"]
-            ],
-        }
-        for key in json_schema["default"]
-    ]
-    key_schemas = [{"AttributeName": json_schema["default"][0], "KeyType": "HASH"}]
-
-    if len(json_schema["default"]) == 2:
-        key_schemas.append(
-            {"AttributeName": json_schema["default"][1], "KeyType": "RANGE"}
-        )
-
-    elif len(json_schema["default"]) > 2:
-        raise EnvironmentError(
-            f"can't specify more than one PrimaryKey & one SortKey. Given: {json_schema['default']}"
-        )
-
-    return table_name, attribute_definitions, key_schemas
-
-
-def create_dynamo_db_table_from_schema(json_schema):
-    (
-        table_name,
-        attribute_definitions,
-        key_schemas,
-    ) = _parse_json_schema_2_dynamo_db_schema(json_schema)
-
-    table_name = _cast_table_name(table_name)
+def create_dynamo_db_table_from_schema(json_schema, **resource_config):
+    if not resource_config:
+        resource_config = {"region_name": os_environ["AWS_REGION"]}
 
     ddb = boto3.resource("dynamodb", **resource_config)
+    infrastructure = convert_schema_to_infrastructure_code(json_schema)
+    infrastructure["TableName"] = _cast_table_name(infrastructure["TableName"])
     try:
         ddb.create_table(
-            TableName=table_name,
-            AttributeDefinitions=attribute_definitions,
-            KeySchema=key_schemas,
-            ProvisionedThroughput={"ReadCapacityUnits": 1, "WriteCapacityUnits": 1},
+            **infrastructure
         )
 
-        print(f"successfully created table {table_name}")
+        print(f"successfully created table {infrastructure['TableName']}")
     except Exception as e:
-        print(f"not created table {table_name}")
+        print(f"not created table {infrastructure['TableName']}")
         print(e)
         pass
 
 
-def delete_dynamo_db_table(table_name: str, require_confirmation: bool = True):
+def delete_dynamo_db_table(table_name: str, require_confirmation: bool = True, **resource_config):
+    if not resource_config:
+        resource_config = {"region_name": os_environ["AWS_REGION"]}
     if require_confirmation:
         decision = input(f"Are you sure to delete Dynamo DB table {table_name}\ny/n: ")
         if decision != "y":
@@ -78,3 +37,28 @@ def delete_dynamo_db_table(table_name: str, require_confirmation: bool = True):
 
     ddb = boto3.client("dynamodb", **resource_config)
     ddb.delete_table(TableName=table_name)
+
+
+def _create_attribute_definition(schema, attribute_name):
+    return {
+        "AttributeName": attribute_name,
+        "AttributeType": _json_schema_2_dynamo_db_type_switch[
+            schema["properties"][attribute_name]["type"]
+        ]
+    }
+
+
+def convert_schema_to_infrastructure_code(schema: dict) -> dict:
+    infrastructure_code = schema["$infrastructure"]
+    infrastructure_code["TableName"] = schema["title"]
+    infrastructure_code["AttributeDefinitions"] = list()
+
+    keys_to_define = set([key_schema["AttributeName"] for key_schema in infrastructure_code["KeySchema"]])
+    for index_type in ["LocalSecondaryIndexes", "GlobalSecondaryIndexes"]:
+        for index_schema in infrastructure_code.get(index_type, list()):
+            keys_to_define.update(set([key_schema["AttributeName"] for key_schema in index_schema["KeySchema"]]))
+
+    infrastructure_code["AttributeDefinitions"] = [
+        _create_attribute_definition(schema, key) for key in keys_to_define
+    ]
+    return infrastructure_code

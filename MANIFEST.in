@@ -1,0 +1,1 @@
+include dynamo_db_resource/dynamodb_schema.json

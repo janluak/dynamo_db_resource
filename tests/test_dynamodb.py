@@ -1,13 +1,13 @@
 from unittest import TestCase, skip
 from os import environ as os_environ
-from os.path import dirname, realpath
+from pathlib import Path
 from os import chdir, getcwd
 from fil_io.json import load_single
 from copy import deepcopy
 from moto import mock_dynamodb2
 from pytest import fixture
 
-test_item = load_single(f"{dirname(realpath(__file__))}/test_data/items/test_item.json")
+test_item = load_single(Path(Path(__file__).parent, "test_data/items/test_item.json"))
 test_item_primary = {"primary_partition_key": "some_identification_string"}
 
 
@@ -27,16 +27,19 @@ def set_stage_os_environ():
     del os_environ["DYNAMO_DB_RESOURCE_STAGE_NAME"]
 
 
+@mock_dynamodb2
 def test_stack_name_in_table_name(set_stack_os_environ):
     from dynamo_db_resource.dynamo_db_table import _cast_table_name
     assert _cast_table_name("TableName") == "TEST-someStack-TableName"
 
 
+@mock_dynamodb2
 def test_stage_name_in_table_name(set_stage_os_environ):
     from dynamo_db_resource.dynamo_db_table import _cast_table_name
     assert _cast_table_name("TableName") == "TEST-TableName"
 
 
+@mock_dynamodb2
 def test_no_additional_name_in_table_name():
     from dynamo_db_resource.dynamo_db_table import _cast_table_name
     assert _cast_table_name("TableName") == "TableName"
@@ -54,14 +57,14 @@ class TestDynamoDBBase(TestCase):
         os_environ["DYNAMO_DB_RESOURCE_SCHEMA_DIRECTORY"] = "test_data/tables/"
 
         self.actual_cwd = getcwd()
-        chdir(dirname(realpath(__file__)))
+        chdir(Path(__file__).parent)
 
         from dynamo_db_resource.table_existence import (
             create_dynamo_db_table_from_schema,
         )
 
         self.raw_schema = load_single(
-            f"{dirname(realpath(__file__))}/test_data/tables/{self.table_name}.json"
+            Path(Path(__file__).parent, f"test_data/tables/{self.table_name}.json")
         )
         create_dynamo_db_table_from_schema(self.raw_schema)
 
@@ -265,6 +268,65 @@ class TestDynamoDBQueryWithUpdateDictionaries(TestDynamoDBQuery):
         self.assertEqual(expected_update_values, calculated_values)
         self.assertEqual(expected_expression_name_mapping, calculated_name_mapping)
 
+    def test_add_set_with_item(self):
+        expected_expression = (
+            "add #AA.#AB :aa"
+        )
+        expected_expression_name_mapping = {
+            "#AA": "parent1",
+            "#AB": "child1"
+        }
+
+        update_data = {
+            "parent1": {"child1": {"2", "3"}}
+        }
+
+        expected_update_values = {
+            ":aa": {"2", "3"}
+        }
+
+        from dynamo_db_resource import Table
+
+        t = Table(self.table_name)
+
+        (
+            calculated_expression,
+            calculated_values,
+            calculated_name_mapping,
+            _,
+        ) = t._create_update_expression(update_data, set_operation=True)
+        self.assertEqual(expected_expression, calculated_expression)
+        self.assertEqual(expected_update_values, calculated_values)
+        self.assertEqual(expected_expression_name_mapping, calculated_name_mapping)
+
+    def test_remove_from_set(self):
+        expected_expression = (
+            "delete #AA.#AB :aa"
+        )
+        expected_expression_name_mapping = {
+            "#AA": "parent1",
+            "#AB": "child1"
+        }
+
+        path_to_attribute = [["parent1", "child1"]]
+
+        expected_update_values = {
+            ":aa": {"2", "3"}
+        }
+
+        from dynamo_db_resource import Table
+
+        t = Table(self.table_name)
+
+        (
+            calculated_expression,
+            calculated_values,
+            calculated_name_mapping,
+        ) = t._create_remove_expression(path_to_attribute, set_items_if_set=[{"2", "3"}])
+        self.assertEqual(expected_expression, calculated_expression)
+        self.assertEqual(expected_update_values, calculated_values)
+        self.assertEqual(expected_expression_name_mapping, calculated_name_mapping)
+
 
 class TestDynamoDBQueryDirectProvisionOfPath(TestDynamoDBQuery):
     def test_update_query_direct_provision_of_paths_and_values(self):
@@ -418,7 +480,7 @@ class TestDynamoDBQueryDirectProvisionOfPath(TestDynamoDBQuery):
         from dynamo_db_resource import Table
         t = Table(self.table_name)
 
-        calculated_expression, calculated_name_mapping = t._create_remove_expression(remove_paths)
+        calculated_expression, _, calculated_name_mapping = t._create_remove_expression(remove_paths)
         self.assertEqual(expected_expression_name_mapping, calculated_name_mapping)
         self.assertEqual(expected_expression, calculated_expression)
 
@@ -434,7 +496,7 @@ class TestDynamoDBQueryDirectProvisionOfPath(TestDynamoDBQuery):
         from dynamo_db_resource import Table
         t = Table(self.table_name)
 
-        calculated_expression, calculated_name_mapping = t._create_remove_expression(remove_path, 0)
+        calculated_expression, _, calculated_name_mapping = t._create_remove_expression(remove_path, 0)
         self.assertEqual(expected_expression, calculated_expression)
         self.assertEqual(expected_expression_name_mapping, calculated_name_mapping)
 
@@ -474,9 +536,11 @@ class TestDynamoDBQueryConditions(TestDynamoDBQuery):
 
         paths = [["p1", "p2"]]
         name_map = {"#AA": "p1", "#AB": "p2"}
-        condition = t._build_conditions(paths, False, name_map)
+        condition, att_key_map, att_val_map = t._build_conditions(paths, False, name_map)
 
         self.assertEqual("attribute_exists(#AA.#AB)", condition)
+        self.assertEqual(dict(), att_key_map)
+        self.assertEqual(dict(), att_val_map)
 
     def test_update_attribute_if_multiple_exists(self):
         from dynamo_db_resource import Table
@@ -485,11 +549,13 @@ class TestDynamoDBQueryConditions(TestDynamoDBQuery):
 
         paths = [["p1", "p2"], ["p1", "p3"]]
         name_map = {"#AA": "p1", "#AB": "p2", "#AC": "p3"}
-        condition = t._build_conditions(paths, False, name_map)
+        condition, att_key_map, att_val_map = t._build_conditions(paths, False, name_map)
 
         self.assertEqual(
             "attribute_exists(#AA.#AB) and attribute_exists(#AA.#AC)", condition
         )
+        self.assertEqual(dict(), att_key_map)
+        self.assertEqual(dict(), att_val_map)
 
     def test_set_attribute_if_not_exists(self):
         from dynamo_db_resource import Table
@@ -498,9 +564,26 @@ class TestDynamoDBQueryConditions(TestDynamoDBQuery):
 
         paths = [["p1", "p2"]]
         name_map = {"#AA": "p1", "#AB": "p2"}
-        condition = t._build_conditions(False, paths, name_map)
+        condition, att_key_map, att_val_map = t._build_conditions(False, paths, name_map)
 
         self.assertEqual("attribute_not_exists(#AA.#AB)", condition)
+        self.assertEqual(dict(), att_key_map)
+        self.assertEqual(dict(), att_val_map)
+
+    def test_direct_given_condition(self):
+        from dynamo_db_resource import Table
+        from dynamo_db_resource.conditions import Attr
+
+        t = Table(self.table_name)
+
+        paths = [["p1", "p2"]]
+        name_map = {"#AA": "p1", "#AB": "p2"}
+        user_condition = Attr("some_attribute").eq("some_value")
+        condition, att_key_map, att_val_map = t._build_conditions(False, paths, name_map, user_condition)
+
+        self.assertEqual("attribute_not_exists(#AA.#AB) and #n0 = :v0", condition)
+        self.assertEqual({"#n0": "some_attribute"}, att_key_map)
+        self.assertEqual({":v0": "some_value"}, att_val_map)
 
 
 class TestDynamoDB(TestDynamoDBBase):
@@ -531,7 +614,6 @@ class TestDynamoDB(TestDynamoDBBase):
             [{"primary_partition_key": "pk1", "range_key": "rk1"}, {"primary_partition_key": "pk1", "range_key": "rk2"}],
             tr._cast_primary_keys([{"primary_partition_key": "pk1", "range_key": "rk1"}, {"primary_partition_key": "pk1", "range_key": "rk2"}], batch=True)
         )
-
 
     def test_put(self):
         from dynamo_db_resource import Table
@@ -585,10 +667,11 @@ class TestDynamoDB(TestDynamoDBBase):
     def test_put_item_missing_keys(self):
         item = test_item_primary.copy()
         from dynamo_db_resource import Table
+        from dynamo_db_resource.exceptions import ValidationError
 
         t = Table(self.table_name)
 
-        with self.assertRaises(TypeError) as TE:
+        with self.assertRaises(ValidationError) as TE:
             t.put(item)
 
         self.assertEqual(
@@ -658,13 +741,14 @@ class TestDynamoDB(TestDynamoDBBase):
 
     def test_put_item_with_unexpected_property(self):
         from dynamo_db_resource import Table
+        from dynamo_db_resource.exceptions import ValidationError
 
         t = Table(self.table_name)
 
         changed_item = deepcopy(test_item)
         changed_item["some_dict"].update({"unexpected_key": "unexpected_value"})
 
-        with self.assertRaises(TypeError) as TE:
+        with self.assertRaises(ValidationError) as TE:
             t.put(changed_item)
 
         self.assertEqual(
@@ -714,15 +798,16 @@ class TestDynamoDB(TestDynamoDBBase):
             FNF.exception.args[0],
         )
 
-    def test_update_attribute_non_exiting_item_but_create_it(self):
+    def test_update_attribute_non_exiting_item_but_create_it_with_missing_attributes(self):
         updated_attribute = {"some_float": 249235.93}
         from dynamo_db_resource import Table
+        from dynamo_db_resource.exceptions import ValidationError
 
         changed_item = deepcopy(test_item_primary)
         changed_item.update(**updated_attribute)
 
         t = Table(self.table_name)
-        with self.assertRaises(TypeError) as TE:
+        with self.assertRaises(ValidationError) as TE:
             t.update_attribute(
                 updated_attribute, create_item_if_non_existent=True, **test_item_primary
             )
@@ -736,17 +821,18 @@ class TestDynamoDB(TestDynamoDBBase):
             TE.exception.args[0],
         )
 
-    def test_update_nested_attribute_non_exiting_item_but_create_it(self):
+    def test_update_nested_attribute_non_exiting_item_but_try_create_it_with_missing_attributes(self):
         updated_attribute = {
             "some_nested_dict": {"KEY1": {"subKEY1": "updated_string"}}
         }
         from dynamo_db_resource import Table
+        from dynamo_db_resource.exceptions import ValidationError
 
         changed_item = deepcopy(test_item_primary)
         changed_item.update(**updated_attribute)
 
         t = Table(self.table_name)
-        with self.assertRaises(TypeError) as TE:
+        with self.assertRaises(ValidationError) as TE:
             t.update_attribute(
                 updated_attribute, create_item_if_non_existent=True, **test_item_primary
             )
@@ -1108,6 +1194,51 @@ class TestDynamoDB(TestDynamoDBBase):
             ],
         )
 
+    def test_adding_set_attribute(self):
+        from dynamo_db_resource import Table
+
+        t = Table("TableForTests")
+        t.put(test_item)
+
+        t.add_new_attribute({"some_string_set": {"2", "3"}}, **test_item_primary)
+        self.assertEqual(
+            {"2", "3"},
+            t.get(**test_item_primary)["some_string_set"]
+        )
+
+    def test_adding_to_set(self):
+        from dynamo_db_resource import Table
+
+        t = Table("TableForTests")
+        t.put(test_item)
+
+        t.add_new_attribute({"some_string_set": {"2", "3"}}, **test_item_primary)
+        self.assertEqual(
+            {"2", "3"},
+            t.get(**test_item_primary)["some_string_set"]
+        )
+        t.update_add_set(
+            {"some_string_set": {"3", "4", "5"}},
+            **test_item_primary
+        )
+        self.assertEqual(
+            {"2", "3", "4", "5"},
+            t.get(**test_item_primary)["some_string_set"]
+        )
+
+    def test_removing_items_from_set(self):
+        from dynamo_db_resource import Table
+
+        t = Table(self.table_name)
+        t.put(test_item)
+
+        t.add_new_attribute({"some_string_set": {"2", "3", "4", "5"}}, **test_item_primary)
+        t.remove_from_set(["some_string_set"], {"3", "4"}, **test_item_primary)
+        self.assertEqual(
+            {"2", "5"},
+            t.get(**test_item_primary)["some_string_set"]
+        )
+
     def test_remove_attribute(self):
         from dynamo_db_resource import Table
         t = Table(self.table_name)
@@ -1127,6 +1258,17 @@ class TestDynamoDB(TestDynamoDBBase):
         path_to_delete = ["some_dict", "key1"]
         response = t.remove_attribute(path_to_delete, returns=UpdateReturns.DELETED, **test_item_primary)
         self.assertEqual("value1", response)
+
+    def test_remove_attribute_with_return_all_old(self):
+        from dynamo_db_resource import Table, UpdateReturns
+        t = Table(self.table_name)
+        t.put(test_item)
+
+        path_to_delete = ["some_dict", "key1"]
+        response = t.remove_attribute(path_to_delete, returns=UpdateReturns.ALL_OLD, **test_item_primary)
+        self.assertEqual(test_item, response)
+        item = t.get(**test_item_primary)
+        self.assertNotIn("key1", item["some_dict"])
 
     def test_remove_non_existing_attribute(self):
         from dynamo_db_resource import Table
@@ -1193,6 +1335,65 @@ class TestDynamoDB(TestDynamoDBBase):
         with self.assertRaises(IndexError):
             t.remove_entry_in_list(path_to_delete, item_no_to_delete, **test_item_primary)
 
+    def test_remove_required_attribute(self):
+        from dynamo_db_resource import Table
+        from dynamo_db_resource.exceptions import ValidationError
+        t = Table(self.table_name)
+
+        path_to_delete = ["some_int"]
+        with self.assertRaises(ValidationError):
+            t.remove_attribute(path_to_delete, **test_item_primary)
+
+    def test_update_with_condition(self):
+        updated_attribute = {"some_float": 249235.93}
+        from dynamo_db_resource import Table
+        from dynamo_db_resource.conditions import Attr
+
+        t = Table(self.table_name)
+
+        t.put(test_item)
+
+        t.update_attribute(
+            updated_attribute,
+            condition=Attr("some_int").eq(42),
+            **test_item_primary,
+        )
+
+        self.assertEqual(
+            updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+        )
+
+        updated_attribute = {"some_float": 34.15}
+        t.update_attribute(
+            updated_attribute,
+            condition=Attr("some_int").lt(45),
+            **test_item_primary,
+        )
+
+        self.assertEqual(
+            updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+        )
+
+    def test_update_condition_exception(self):
+        from dynamo_db_resource import Table
+        from dynamo_db_resource.exceptions import ConditionalCheckFailedException
+        from dynamo_db_resource.conditions import Attr
+
+        t = Table(self.table_name)
+
+        t.put(test_item)
+
+        with self.assertRaises(ConditionalCheckFailedException):
+            t.update_attribute(
+                {"some_float": 15.15},
+                condition=Attr("some_int").eq(0),
+                **test_item_primary,
+            )
+        self.assertEqual(
+            test_item,
+            t.get(**test_item_primary)
+        )
+
     def test_scan_and_truncate(self):
         from dynamo_db_resource import Table
 
@@ -1233,16 +1434,82 @@ class TestDynamoDB(TestDynamoDBBase):
         )
 
 
-class TestDynamoDBBatch(TestDynamoDBBase):
+class TestDynamoDBRangeNIndex(TestDynamoDBBase):
     table_name = "TableWithRange"
 
-    def test_batch_get_with_range_key(self):
+    def setUp(self) -> None:
+        super().setUp()
         from dynamo_db_resource import Table
 
         t = Table(self.table_name)
         file_names = ["test_range_item-1_1.json", "test_range_item-1_2.json", "test_range_item-2_1.json"]
         for file_name in file_names:
-            t.put(load_single(f"{dirname(realpath(__file__))}/test_data/items/{file_name}"))
+            t.put(load_single(Path(Path(__file__).parent, f"test_data/items/{file_name}")))
+
+    def test_cast_index_keys(self):
+        from dynamo_db_resource import Table
+
+        tr = Table("TableWithRange")
+        index_name = "some_string_index"
+        expected_index = {"some_string": "some_value"}
+        self.assertEqual(expected_index, tr._cast_index_keys(index_name, "some_value"))
+        self.assertEqual(expected_index, tr._cast_index_keys(index_name, {"some_string": "some_value"}))
+
+        index_name = "string_n_int_index"
+        expected_index = {"some_string": "some_value", "some_int": 2}
+        self.assertEqual(expected_index, tr._cast_index_keys(index_name, "some_value", 2))
+        self.assertEqual(expected_index, tr._cast_index_keys(
+            index_name, {"some_string": "some_value", "some_int": 2})
+                         )
+
+    def test_raw_query(self):
+        from dynamo_db_resource import Table
+        from dynamo_db_resource.conditions import Key
+        t = Table(self.table_name)
+
+        response = t.query(
+            KeyConditionExpression=Key("primary_partition_key").eq("first_key")
+        )
+        self.assertEqual(response["Count"], 2)
+
+    def test_get_item_from_index(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        response = t.index_get(index="some_string_index", **{"some_string": "some_key1"})
+        self.assertEqual(
+            "first_key",
+            response["primary_partition_key"]
+        ),
+        self.assertEqual(
+            t.get(primary_partition_key="first_key", range_key="range1"),
+            response
+        )
+
+    def test_get_item_from_composite_index(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        response = t.index_get(index="string_n_int_index", **{"some_string": "some_key2", "some_int": 2})
+        self.assertEqual(
+            "first_key",
+            response["primary_partition_key"]
+        ),
+        self.assertEqual(
+            t.get(primary_partition_key="first_key", range_key="range2"),
+            response
+        )
+
+    def test_get_non_existent_item_from_index(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        with self.assertRaises(FileNotFoundError):
+            t.index_get(index="some_string_index", **{"some_string": "not existing key"})
+
+    def test_batch_get_with_range_key(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
 
         response = t.batch_get([
             ["first_key", "range1"],
@@ -1253,13 +1520,19 @@ class TestDynamoDBBatch(TestDynamoDBBase):
                 ('first_key', 'range1'): {
                     'primary_partition_key': 'first_key',
                     'range_key': 'range1',
-                    'some_int': 1
+                    'some_int': 1,
+                    'some_string': 'some_key1'
                 },
                 ('second_key', 'range1'): {
                     'primary_partition_key': 'second_key',
                     'range_key': 'range1',
-                    'some_int': 1
+                    'some_int': 1,
+                    'some_string': 'some_key3'
                 }
              },
             response
         )
+
+
+class TestIndexDynamoDB(TestDynamoDBBase):
+    pass

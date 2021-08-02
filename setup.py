@@ -21,6 +21,7 @@ setup(
     author="Jan Lukas Braje",
     author_email="aws_dynamo_db@getkahawa.com",
     packages=find_packages(),
+    include_package_data=True,
     python_requires=">=3.8",
     zip_safe=False,
     classifiers=[

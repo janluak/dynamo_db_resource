@@ -1,6 +1,0 @@
-{
-  "primary_partition_key": "cache_identification_string",
-  "some_string": "abcdef",
-  "some_int": 42,
-  "some_float": 13.42
-}

@@ -3,17 +3,17 @@ from fil_io.select import get_file_list_from_directory
 import json
 
 
-def create_table(schema_file, include_stage_name):
+def create_table(schema_file):
     from dynamo_db_resource.table_existence import (
         create_dynamo_db_table_from_schema,
     )
 
     with open(schema_file, "r") as f:
         schema = json.load(f)
-    create_dynamo_db_table_from_schema(schema, include_stage_name)
+    create_dynamo_db_table_from_schema(schema)
 
 
-def create_table_for_schema_in_directory(directory, tables=None, include_stage_name: bool = True):
+def create_table_for_schema_in_directory(directory, tables=None):
     schemas = get_file_list_from_directory(directory, file_ending=".json")
 
     for schema_file in schemas:
@@ -22,7 +22,29 @@ def create_table_for_schema_in_directory(directory, tables=None, include_stage_n
         else:
             schema_file = Path(schema_file)
             if any(f"{i}.json" == schema_file.name for i in tables):
-                create_table(schema_file, include_stage_name)
+                create_table(schema_file)
+
+
+def create_infrastructure_for_schema_in_directory(directory, tables=None):
+    from ._schema import convert_schema_to_infrastructure_code
+    schemas = get_file_list_from_directory(directory, file_ending=".json")
+
+    data = dict()
+    for schema_file in schemas:
+        if not tables:
+            with open(schema_file, "r") as f:
+                schema = json.load(f)
+            infrastructure = convert_schema_to_infrastructure_code(schema)
+        else:
+            schema_file = Path(schema_file)
+            if any(f"{i}.json" == schema_file.name for i in tables):
+                with open(schema_file, "r") as f:
+                    schema = json.load(f)
+                infrastructure = convert_schema_to_infrastructure_code(schema)
+            else:
+                continue
+        data[Path(schema_file).stem] = infrastructure
+    return data
 
 
 if __name__ == "__main__":
@@ -33,7 +55,7 @@ if __name__ == "__main__":
     __parser.add_argument(
         "command",
         help="what shall be done",
-        choices=["create_table"]
+        choices=["create_table", "export_infrastructure"]
     )
 
     __parser.add_argument(
@@ -41,6 +63,11 @@ if __name__ == "__main__":
         "-s",
         help="stage name",
         default="dev",
+    )
+    __parser.add_argument(
+        "--stack",
+        "-st",
+        help="stack name",
     )
     __parser.add_argument(
         "--environment",
@@ -57,34 +84,43 @@ if __name__ == "__main__":
     )
 
     __parser.add_argument(
-        "--no_include_stage_name",
-        "-no_stage",
-        help="do not include stage_name in table name",
-        action="store_false"
-    )
-
-    __parser.add_argument(
         "--tables",
         "-t",
         help="which tables to create",
         nargs="*",
+        default=None
     )
 
     __parser.add_argument(
         "--directory",
         "-d",
         help="directory of schema files",
-        default="../test_data/tables/",
+        default="./",
+    )
+
+    __parser.add_argument(
+        "--infrastructure_export_type",
+        "-it",
+        help="data format type of the infrastructure",
+        choices=["json", "yml", "yaml"],
+        default="yml"
     )
 
     __vars = vars(__parser.parse_args())
     os_environ["ENV"] = __vars["environment"]
-    os_environ["STAGE"] = __vars["stage"].upper()
-    os_environ["WRAPPER_CONFIG_FILE"] = __vars["config_file"]
-    os_environ["AWS_REGION"] = __vars["region"]
+    if __vars["stage"]:
+        os_environ['DYNAMO_DB_RESOURCE_STAGE_NAME'] = __vars["stage"].upper()
+    if __vars["stack"]:
+        os_environ['DYNAMO_DB_RESOURCE_STACK_NAME'] = __vars["stack"].upper()
 
     if __vars["command"] == "create_table":
-        if not __vars["tables"]:
-            create_table_for_schema_in_directory(__vars["directory"], None, __vars["no_include_stage_name"])
+        os_environ["AWS_REGION"] = __vars["region"]
+        create_table_for_schema_in_directory(__vars["directory"], None)
+    if __vars["command"] == "export_infrastructure":
+        infrastructure = create_infrastructure_for_schema_in_directory(__vars["directory"], __vars["tables"])
+        if __vars["infrastructure_export_type"] != "json":
+            from yaml import safe_dump
+            print(safe_dump(infrastructure))
         else:
-            create_table_for_schema_in_directory(__vars["directory"], __vars["tables"], __vars["no_include_stage_name"])
+            from json import dumps
+            print(dumps(infrastructure))

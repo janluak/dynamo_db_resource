@@ -1,5 +1,16 @@
 from jsonschema.exceptions import ValidationError
 
+__all__ = [
+    "ConditionalCheckFailedException",
+    "AttributeExistsException",
+    "AttributeNotExistsException",
+    "ValidationError"
+]
+
+
+class ConditionalCheckFailedException(Exception):
+    pass
+
 
 class AttributeExistsException(AttributeError):
     pass
@@ -48,6 +59,7 @@ class CustomExceptionRaiser:
             }
             if "enum" in error.schema and error.schema["enum"]:
                 response["body"] += f"\nenum: {error.schema['enum']}"
+            raise TypeError(response)
         elif error.validator == "required":
             response = {
                 "statusCode": 400,
@@ -68,13 +80,22 @@ class CustomExceptionRaiser:
                 "headers": {"Content-Type": "text/plain"},
             }
 
-        raise TypeError(response)
+        raise ValidationError(response)
 
     def item_already_existing(self, item):
         raise FileExistsError(
             {
                 "statusCode": 409,
                 "body": f"Item is already existing.\nTable: {self.table.name}\nItem: {item}",
+                "headers": {"Content-Type": "text/plain"},
+            }
+        )
+
+    def removing_required_attribute(self, attribute, path):
+        raise ValidationError(
+            {
+                "statusCode": 400,
+                "body": f"{attribute} is a required attribute in {path} for table {self.table.name} and cannot be removed",
                 "headers": {"Content-Type": "text/plain"},
             }
         )

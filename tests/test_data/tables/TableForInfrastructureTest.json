@@ -1,0 +1,76 @@
+{
+    "$schema": "../../../dynamo_db_resource/dynamodb_schema#",
+    "title": "TableForInfrastructureTest",
+    "description": "This is an example schema for creating a dynamo_db table/validating items against",
+    "type": "object",
+    "additionalProperties": false,
+    "$infrastructure": {
+        "KeySchema": [
+            {
+                "AttributeName": "primary_partition_key",
+                "KeyType": "HASH"
+            }
+        ],
+        "LocalSecondaryIndexes": [
+            {
+                "IndexName": "some_string_index",
+                "KeySchema": [
+                    {
+                        "AttributeName": "some_string",
+                        "KeyType": "HASH"
+                    }
+                ],
+                "Projection": {
+                    "ProjectionType": "ALL"
+                }
+            }
+        ],
+        "ProvisionedThroughput": {
+            "ReadCapacityUnits": 1,
+            "WriteCapacityUnits": 1
+        },
+        "Tags": [
+            {
+                "Key": "tag-Key",
+                "Value": "tag-Value"
+            }
+        ],
+        "StreamSpecification": {
+            "StreamViewType": "NEW_AND_OLD_IMAGES"
+        }
+    },
+    "properties": {
+        "primary_partition_key": {
+            "description": "the primary partition key of the dynamo db",
+            "type": "string"
+        },
+        "some_string": {
+            "description": "some key containing any kind of strings",
+            "type": "string"
+        },
+        "some_string_set": {
+            "type": "stringSet",
+            "$comment": "only strings allowed"
+        },
+        "some_map": {
+            "type": "object",
+            "properties": {
+                "nested_key": {
+                    "type": "string"
+                }
+            }
+        },
+        "some_list": {
+            "type": "array",
+            "items": {
+                "type": "integer",
+                "minimum": 3
+            },
+            "minItems": 2
+        }
+    },
+    "required": [
+        "primary_partition_key",
+        "some_string"
+    ]
+}

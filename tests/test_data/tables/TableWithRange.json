@@ -1,13 +1,63 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "../../../dynamo_db_resource/dynamodb_schema.json#",
   "title": "TableWithRange",
   "description": "This is an example schema for creating a dynamo_db table/validating items against",
   "type": "object",
   "additionalProperties": false,
-  "default": [
-    "primary_partition_key",
-    "range_key"
-  ],
+  "$infrastructure": {
+    "KeySchema": [
+      {
+        "AttributeName": "primary_partition_key",
+        "KeyType": "HASH"
+      },
+      {
+        "AttributeName": "range_key",
+        "KeyType": "RANGE"
+      }
+    ],
+    "GlobalSecondaryIndexes": [
+      {
+        "IndexName": "some_string_index",
+        "KeySchema": [
+          {
+            "AttributeName": "some_string",
+            "KeyType": "HASH"
+          }
+        ],
+        "Projection": {
+          "ProjectionType": "ALL"
+        },
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": 1,
+          "WriteCapacityUnits": 1
+        }
+      },
+      {
+        "IndexName": "string_n_int_index",
+        "KeySchema": [
+          {
+            "AttributeName": "some_string",
+            "KeyType": "HASH"
+          },
+          {
+            "AttributeName": "some_int",
+            "KeyType": "RANGE"
+          }
+        ],
+        "Projection": {
+          "ProjectionType": "ALL"
+        },
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": 1,
+          "WriteCapacityUnits": 1
+        }
+      }
+    ],
+    "ProvisionedThroughput": {
+      "WriteCapacityUnits": 1,
+      "ReadCapacityUnits": 1
+    }
+  },
   "properties": {
     "primary_partition_key": {
       "description": "the primary partition key of the dynamo db",
@@ -15,6 +65,13 @@
     },
     "range_key": {
       "description": "range_key of the dynamo db",
+      "type": "string"
+    },
+    "some_number_set": {
+      "description": "some key containing any set of integer",
+      "type": "numberSet"
+    },
+    "some_string": {
       "type": "string"
     },
     "some_int": {

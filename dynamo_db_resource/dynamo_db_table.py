@@ -1,20 +1,29 @@
+from aws_schema import SchemaValidator
 from aws_schema.nested_dict_helper import find_path_values_in_dict
 from ._number_types_in_objects import (
     object_with_float_to_decimal,
     object_with_decimal_to_float
 )
+from ._schema import DynamoDBValidator
+from .exceptions import (
+    ConditionalCheckFailedException,
+    AttributeExistsException,
+    AttributeNotExistsException,
+    ValidationError,
+    CustomExceptionRaiser
+)
+from inspect import stack
 from os import environ as os_environ
 from string import ascii_lowercase
 from boto3 import resource
+from boto3.dynamodb.conditions import Key, And, ConditionExpressionBuilder
 from botocore.exceptions import ClientError
 from copy import deepcopy
-from ._base_class import NoSQLTable
-from .exceptions import AttributeExistsException, AttributeNotExistsException
 from typing import Iterable
 
-dynamo_db_resource = resource("dynamodb", **{"region_name": os_environ["AWS_REGION"] if "AWS_REGION" in os_environ else "us-east-1"})
+_ddb_resource = resource("dynamodb", **{"region_name": os_environ["AWS_REGION"] if "AWS_REGION" in os_environ else "us-east-1"})
 
-__all__ = ["Table", "UpdateReturns"]
+__all__ = ["Table", "UpdateReturns", "SelectReturns"]
 
 
 class UpdateReturns:
@@ -26,7 +35,17 @@ class UpdateReturns:
     UPDATED_OLD = "UPDATED_OLD"
     ALL_NEW = "ALL_NEW"
     UPDATED_NEW = "UPDATED_NEW"
-    DELETED = "DELETED"
+    DELETED = "UPDATED_OLD"
+
+
+class SelectReturns:
+    """
+    containts the options for query return values
+    """
+    ALL_ATTRIBUTES = "ALL_ATTRIBUTES"
+    ALL_PROJECTED_ATTRIBUTES = "ALL_PROJECTED_ATTRIBUTES"
+    SPECIFIC_ATTRIBUTES = "SPECIFIC_ATTRIBUTES"
+    COUNT = "COUNT"
 
 
 _value_update_chars = list()
@@ -45,21 +64,62 @@ def _cast_table_name(table_name: str) -> str:
     return "-".join(name_components)
 
 
-class Table(NoSQLTable):
+class Table:
     def __init__(self, table_name, special_resource_config: dict = False):
-        super().__init__(table_name)
+        self.__table_name = table_name
+        self.__custom_exception_raiser = CustomExceptionRaiser(self)
+
+        self.__schema_validator = SchemaValidator(
+            **{
+                os_environ["DYNAMO_DB_RESOURCE_SCHEMA_ORIGIN"].lower(): os_environ[
+                                                                            "DYNAMO_DB_RESOURCE_SCHEMA_DIRECTORY"]
+                                                                        + self.__table_name
+            },
+            custom_validator=DynamoDBValidator
+        )
         if special_resource_config:
             self.__resource = resource("dynamodb", **special_resource_config)
             self.__resource_config = special_resource_config
         else:
-            self.__resource = dynamo_db_resource
+            self.__resource = _ddb_resource
             self.__resource_config = {"region_name": os_environ["AWS_REGION"]}
         self.__table_name = _cast_table_name(table_name)
         self.__table = self.__resource.Table(self.__table_name)
+        self._cast_indexes()
+
+    @property
+    def name(self):
+        return self.__table_name
+
+    @property
+    def pk(self):
+        return tuple([i["AttributeName"] for i in self.__schema_validator.schema["$infrastructure"]["KeySchema"]])
+
+    @property
+    def schema(self):
+        return self.__schema_validator.schema
 
     @property
     def table(self):
         return self.__table
+
+    @property
+    def indexes(self) -> dict:
+        return self.__indexes
+
+    @property
+    def custom_exception(self):
+        return self.__custom_exception_raiser
+
+    def _cast_indexes(self):
+        self.__indexes = dict()
+        for k in ["LocalSecondaryIndexes", "GlobalSecondaryIndexes"]:
+            self.__indexes.update(
+                {
+                    indexes["IndexName"]: tuple([i["AttributeName"] for i in indexes["KeySchema"]])
+                    for indexes in self.schema["$infrastructure"].get(k, list())
+                }
+            )
 
     @property
     def _item_not_exists_condition(self):
@@ -100,6 +160,51 @@ class Table(NoSQLTable):
                     casted_keys.append(dict(zip(self.pk, i)))
         return casted_keys
 
+    def _validate_input(self, given_input):
+        function_name = stack()[1].function
+        if any([i in function_name for i in ["update", "add"]]):
+            try:
+                self.__schema_validator.validate_sub_part(given_input)
+            except ValidationError as e:
+                self.custom_exception.wrong_data_type(e)
+
+        elif "put" == function_name:
+            try:
+                self.__schema_validator.validate(given_input)
+            except ValidationError as e:
+                self.custom_exception.wrong_data_type(e)
+
+        elif "remove_attribute" == function_name:
+            for path in given_input:
+                path_to_attribute = path[:-1]
+                attribtue = path[-1]
+                sub_schema = self.__schema_validator.get_sub_schema(path_to_attribute)
+                if attribtue in sub_schema.get("required", list()):
+                    self.custom_exception.removing_required_attribute(attribtue, path_to_attribute)
+        else:
+            self._primary_key_checker(given_input)
+
+    def _primary_key_checker(self, given_primaries):
+        if not all(pk in given_primaries for pk in self.pk):
+            self.custom_exception.missing_primary_key(
+                tuple([key for key in self.pk if key not in given_primaries])
+            )
+        elif len(given_primaries) > len(self.pk):
+            self.custom_exception.wrong_primary_key(given_primaries)
+
+    def _cast_index_keys(self, index: str, *index_primary_data) -> dict:
+        if isinstance(index_primary_data[0], dict):
+            return index_primary_data[0]
+        return {self.indexes[index][i]: index_primary_data[i] for i in range(len(index_primary_data))}
+
+    def _index_key_checker(self, index: str, index_primary: dict):
+        if not all(ik in index_primary for ik in self.indexes[index]):
+            self.custom_exception.missing_primary_key(
+                tuple([key for key in self.indexes[index] if key not in index_primary])
+            )
+        elif len(index_primary) > len(self.indexes[index]):
+            self.custom_exception.wrong_primary_key(index_primary)
+
     def describe(self):
         from boto3 import client
 
@@ -126,12 +231,14 @@ class Table(NoSQLTable):
 
     @staticmethod
     def _create_remove_expression(
-        path_to_list: list,
-        list_position_if_list: int = None
+        path_to_attribute: list,
+        list_position_if_list: int = None,
+        set_items_if_set: list = None,
     ):
 
-        expression = "remove "
+        expression = "remove " if not set_items_if_set else "delete "
         attribute_key_mapping = dict()
+        expression_values = dict()
         letter_count = 0
         def assign_key_to_attribute_path_step(attribute_name, letter_count):
             if attribute_name not in attribute_key_mapping:
@@ -141,11 +248,16 @@ class Table(NoSQLTable):
                 letter_count += 1
             return letter_count
 
-        for path in path_to_list:
+        for path_no, path in enumerate(path_to_attribute):
             for attribute in path:
                 letter_count = assign_key_to_attribute_path_step(attribute, letter_count)
                 expression += f"{attribute_key_mapping[attribute]}."
             expression = expression[:-1]
+            if set_items_if_set is not None:
+                expression += f" :{_value_update_chars[path_no]}"
+                expression_values[f":{_value_update_chars[path_no]}"] = object_with_float_to_decimal(set_items_if_set[
+                                                                                                         path_no
+                                                                                                     ])
             expression += ", "
 
         expression = expression[:-2]
@@ -153,7 +265,7 @@ class Table(NoSQLTable):
         if list_position_if_list is not None:
             expression += f"[{list_position_if_list}]"
 
-        return expression, {v: k for k, v in attribute_key_mapping.items()}
+        return expression, expression_values, {v: k for k, v in attribute_key_mapping.items()}
 
     @staticmethod
     def _create_update_expression(
@@ -162,8 +274,9 @@ class Table(NoSQLTable):
         paths_to_new_data=None,
         values_per_path=None,
         list_operation: (bool, list, tuple) = False,
+        set_operation: (bool, set) = False
     ):
-        expression = "set "
+        expression = "set " if not set_operation else "add "
         expression_values = dict()
 
         if not paths_to_new_data or not values_per_path:
@@ -171,19 +284,23 @@ class Table(NoSQLTable):
 
         if isinstance(list_operation, bool):
             list_operation = [list_operation for i in paths_to_new_data]
+        if isinstance(set_operation, bool):
+            set_operation = [set_operation for i in paths_to_new_data]
 
         attribute_key_mapping = dict()
         letters_used = 0
 
         def update_expression_attribute():
             if list_operation[path_no]:
-                return f"list_append({string_path_to_attribute}, :{_value_update_chars[path_no]})"
-            return f":{_value_update_chars[path_no]}"
+                return f"= list_append({string_path_to_attribute}, :{_value_update_chars[path_no]})"
+            if set_operation[path_no]:
+                return f":{_value_update_chars[path_no]}"
+            return f"= :{_value_update_chars[path_no]}"
 
         def update_expression_value():
-            expression_values[f":{_value_update_chars[path_no]}"] = values_per_path[
-                path_no
-            ]
+            expression_values[f":{_value_update_chars[path_no]}"] = object_with_float_to_decimal(values_per_path[
+                    path_no
+                ])
 
         def assign_key_to_attribute_path_step(attribute_name, letter_count):
             if attribute_name not in attribute_key_mapping:
@@ -218,14 +335,14 @@ class Table(NoSQLTable):
             string_path_to_attribute = ".".join(path_with_letter_keys)
 
             expression += (
-                f"{string_path_to_attribute} = {update_expression_attribute()}, "
+                f"{string_path_to_attribute} {update_expression_attribute()}, "
             )
 
             update_expression_value()
 
         return (
             expression[:-2],
-            object_with_float_to_decimal(expression_values),
+            expression_values,
             {v: k for k, v in attribute_key_mapping.items()},
             paths_to_new_data,
         )
@@ -235,12 +352,15 @@ class Table(NoSQLTable):
         existing_attribute_paths: (list, None),
         not_existing_attribute_paths: (list, None),
         expression_name_map: dict,
+        direct_conditions=None
     ):
 
-        if not existing_attribute_paths and not not_existing_attribute_paths:
+        if not any([existing_attribute_paths, not_existing_attribute_paths, direct_conditions]):
             return None
 
         conditions = list()
+        att_map = dict()
+        val_map = dict()
 
         expression_name_map = {v: k for k, v in expression_name_map.items()}
 
@@ -262,8 +382,14 @@ class Table(NoSQLTable):
             conditions.append(
                 self._attribute_not_exists_condition(not_existing_attribute_paths)
             )
+        if direct_conditions:
+            if not isinstance(direct_conditions, Iterable):
+                cond, att_map, val_map = ConditionExpressionBuilder().build_expression(direct_conditions)
+            else:
+                cond, att_map, val_map = ConditionExpressionBuilder().build_expression(And(*direct_conditions))
+            conditions.append(cond)
 
-        return " and ".join(conditions)
+        return " and ".join(conditions), att_map, val_map
 
     def __general_update(
         self,
@@ -272,40 +398,34 @@ class Table(NoSQLTable):
         require_attributes_to_be_missing=False,
         create_item_if_non_existent,
         list_operation=False,
-        returns="NONE",
+        set_operation=False,
+        returns: UpdateReturns = UpdateReturns.NONE,
         new_data=None,
         remove_data=None,
+        remove_set_item=None,
         remove_list_item=None,
+        direct_condition=None,
         **primary_dict,
     ):
         self._primary_key_checker(primary_dict)
 
         if new_data:
             self._validate_input(new_data)
-
+            # ToDo create condition for attribute still required length if schema contains maxItems/maxProperties
             (
-                expression,
-                values,
+                update_expression,
+                expression_value_map,
                 expression_name_map,
                 paths_to_data,
-            ) = self._create_update_expression(new_data, list_operation=list_operation)
+            ) = self._create_update_expression(new_data, list_operation=list_operation, set_operation=set_operation)
 
-            update_dict = {
-                "Key": primary_dict,
-                "UpdateExpression": expression,
-                "ExpressionAttributeValues": values,
-                "ExpressionAttributeNames": expression_name_map,
-                "ReturnValues": returns
-            }
         else:
-            # ToDo check if removal of attribute not required part of required schema
-            expression, expression_name_map = self._create_remove_expression(remove_data, remove_list_item)
-            update_dict = {
-                "Key": primary_dict,
-                "UpdateExpression": expression,
-                "ExpressionAttributeNames": expression_name_map,
-                "ReturnValues": returns if not UpdateReturns.DELETED else UpdateReturns.UPDATED_OLD
-            }
+            # ToDo create condition for attribute still required length if schema contains minItems/minProperties
+            (
+                update_expression,
+                expression_value_map,
+                expression_name_map
+            ) = self._create_remove_expression(remove_data, remove_list_item, remove_set_item)
             paths_to_data = remove_data.copy()
 
         necessary_attribute_paths = list()
@@ -317,14 +437,28 @@ class Table(NoSQLTable):
                 expression_name_map[f"#{_expression_name_key.upper()}"] = k
                 necessary_attribute_paths.append([k])
 
-        if conditions := self._build_conditions(
+        if condition_data := self._build_conditions(
             existing_attribute_paths=necessary_attribute_paths,
             not_existing_attribute_paths=paths_to_data
             if require_attributes_to_be_missing
             else None,
             expression_name_map=expression_name_map,
+            direct_conditions=direct_condition
         ):
-            update_dict.update(ConditionExpression=conditions)
+            condition_expression = condition_data[0]
+            expression_name_map.update(condition_data[1])
+            expression_value_map.update(condition_data[2])
+        else:
+            condition_expression = str()
+
+        update_dict = {
+            "Key": primary_dict,
+            "UpdateExpression": update_expression,
+            "ExpressionAttributeNames": expression_name_map,
+            "ExpressionAttributeValues": expression_value_map,
+            "ReturnValues": returns,
+            "ConditionExpression": condition_expression
+        }
 
         def return_only_deleted(resp):
             return_data = [resp for _ in remove_data]
@@ -396,7 +530,10 @@ class Table(NoSQLTable):
 
             elif CE.response["Error"]["Code"] == "ConditionalCheckFailedException":
                 try:
-                    item = self.get(**primary_dict)
+                    # ToDo check for min/max Items/Properties once condition based on schema implemented
+                    if direct_condition:
+                        raise ConditionalCheckFailedException
+                    self.get(**primary_dict)
                     if require_attributes_already_present:
                         raise AttributeNotExistsException
                     else:
@@ -432,14 +569,17 @@ class Table(NoSQLTable):
         new_data: dict,
         update_if_existent=False,
         create_item_if_non_existent=False,
-        returns="NONE",
+        returns: UpdateReturns = UpdateReturns.NONE,
+        condition=None,
         **primary_dict,
     ):
+        self._validate_input(new_data)
         return self.__general_update(
             **primary_dict,
             new_data=new_data,
             require_attributes_to_be_missing=True if not update_if_existent else False,
             create_item_if_non_existent=create_item_if_non_existent,
+            direct_condition=condition,
             returns=returns
         )
 
@@ -448,7 +588,8 @@ class Table(NoSQLTable):
         new_data,
         set_new_attribute_if_not_existent=False,
         create_item_if_non_existent=False,
-        returns="NONE",
+        returns: UpdateReturns = UpdateReturns.NONE,
+        condition=None,
         **primary_dict,
     ):
         return self.__general_update(
@@ -458,10 +599,11 @@ class Table(NoSQLTable):
             if not set_new_attribute_if_not_existent
             else False,
             create_item_if_non_existent=create_item_if_non_existent,
+            direct_condition=condition,
             returns=returns
         )
 
-    def update_list_item(self, primary_dict, item_no, **new_data):
+    def update_list_item(self, primary_dict, item_no, condition=None, **new_data):
         raise NotImplemented
 
     def update_append_list(
@@ -469,7 +611,8 @@ class Table(NoSQLTable):
         new_data,
         set_new_attribute_if_not_existent=False,
         create_item_if_non_existent=False,
-        returns="NONE",
+        returns: UpdateReturns = UpdateReturns.NONE,
+        condition=None,
         **primary_dict,
     ):
         return self.__general_update(
@@ -480,10 +623,32 @@ class Table(NoSQLTable):
             else True,
             create_item_if_non_existent=create_item_if_non_existent,
             list_operation=True,
+            direct_condition=condition,
             returns=returns
         )
 
-    def update_increment(self, path_of_to_increment, **primary_dict):
+    def update_add_set(
+        self,
+        new_data,
+        set_new_attribute_if_not_existent=False,
+        create_item_if_non_existent=False,
+        returns: UpdateReturns = UpdateReturns.NONE,
+        condition=None,
+        **primary_dict,
+    ):
+        return self.__general_update(
+            **primary_dict,
+            new_data=new_data,
+            require_attributes_already_present=False
+            if set_new_attribute_if_not_existent
+            else True,
+            create_item_if_non_existent=create_item_if_non_existent,
+            set_operation=True,
+            direct_condition=condition,
+            returns=returns
+        )
+
+    def update_increment(self, path_of_to_increment, condition=None, **primary_dict):
         #  response = table.update_item(
         #     Key={
         #         'year': year,
@@ -498,7 +663,6 @@ class Table(NoSQLTable):
         raise NotImplemented
 
     def put(self, item, overwrite=False):
-        # ToDo resource is not closed with Unittests -> quick fix: restart of docker every now and then
         self._validate_input(item)
 
         try:
@@ -516,19 +680,32 @@ class Table(NoSQLTable):
             else:
                 raise CE
 
-    def remove_attribute(self, path_of_attribute: list,  returns="NONE", **primary_dict):
+    def remove_attribute(
+            self,
+            path_of_attribute: list,
+            returns: UpdateReturns = UpdateReturns.NONE,
+            condition=None,
+            **primary_dict
+    ):
         if not isinstance(path_of_attribute[0], list):
             path_of_attribute = [path_of_attribute]
+        self._validate_input(path_of_attribute)
         return self.__general_update(
             require_attributes_already_present=True,
             create_item_if_non_existent=False,
             remove_data=path_of_attribute.copy(),
             returns=returns,
+            direct_condition=condition,
             **primary_dict
         )
 
     def remove_entry_in_list(
-        self, path_to_list: list, position_to_delete: int, returns="NONE", **primary_dict
+        self,
+            path_to_list: list,
+            position_to_delete: int,
+            returns: UpdateReturns = UpdateReturns.NONE,
+            condition=None,
+            **primary_dict
     ):
         if not isinstance(path_to_list[0], list):
             path_to_list = [path_to_list]
@@ -538,16 +715,37 @@ class Table(NoSQLTable):
             remove_data=path_to_list.copy(),
             remove_list_item=position_to_delete,
             returns=returns,
+            direct_condition=condition,
             **primary_dict
         )
 
-    def delete(self, **primary_dict):
-        self._primary_key_checker(primary_dict.keys())
-        self.__table.delete_item(Key=primary_dict)
+    def remove_from_set(
+            self,
+            path_to_set: list,
+            items_to_delete: (list, set),
+            returns: UpdateReturns = UpdateReturns.NONE,
+            condition=None,
+            **primary_dict,
+    ):
+        if not isinstance(path_to_set[0], list):
+            path_to_set = [path_to_set]
+        return self.__general_update(
+            require_attributes_already_present=True,
+            create_item_if_non_existent=False,
+            remove_data=path_to_set.copy(),
+            remove_set_item=items_to_delete if isinstance(items_to_delete, list) else [items_to_delete],
+            returns=returns,
+            direct_condition=condition,
+            **primary_dict
+        )
 
-    def get_and_delete(self, **primary_dict):
+    def delete(self, condition=None, **primary_dict):
+        self._primary_key_checker(primary_dict.keys())
+        self.__table.delete_item(Key=primary_dict, ConditionExpression=condition if condition else str())
+
+    def get_and_delete(self, condition=None, **primary_dict):
         response = self.get(**primary_dict)
-        self.delete(**primary_dict)
+        self.delete(condition=condition, **primary_dict)
         return response
 
     def scan(self):
@@ -561,6 +759,44 @@ class Table(NoSQLTable):
         with self.__table.batch_writer() as batch:
             for item in self.scan()["Items"]:
                 batch.delete_item(Key={key: item[key] for key in self.pk})
+
+    def query(self, **query_data):
+        response = self.__table.query(
+            **query_data
+        )
+        if items := response.get("Items", list()):
+            response["Items"] = object_with_decimal_to_float(items)
+        return response
+
+    def index_get(self, index: str, **index_keys: dict):
+        """
+        get item from index name with index primary
+
+        Parameters
+        ----------
+        index: str
+            the name of the index
+        index_keys: dict
+            dict of the primary_keys
+
+        Returns
+        -------
+        dict
+            dynamodb item
+
+        """
+        index_keys = self._cast_index_keys(index, index_keys)
+        self._index_key_checker(index, index_keys)
+        expression_array = [Key(k).eq(v) for k, v in index_keys.items()]
+        key_condition_expression = expression_array[0] if len(expression_array) == 1 else And(*expression_array)
+        try:
+            return self.query(
+                IndexName=index,
+                Select=SelectReturns.ALL_ATTRIBUTES,
+                KeyConditionExpression=key_condition_expression
+            )["Items"][0]
+        except IndexError:
+            raise FileNotFoundError
 
     def batch_get(self, primary_keys: Iterable) -> dict:
         """
@@ -578,7 +814,7 @@ class Table(NoSQLTable):
         """
         primary_keys = self._cast_primary_keys(primary_keys, batch=True)
 
-        response = dynamo_db_resource.batch_get_item(RequestItems={
+        response = _ddb_resource.batch_get_item(RequestItems={
             self.__table_name: {
                 "Keys": primary_keys
             }
