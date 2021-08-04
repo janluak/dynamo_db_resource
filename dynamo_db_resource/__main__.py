@@ -1,5 +1,4 @@
 from pathlib import Path
-from fil_io.select import get_file_list_from_directory
 import json
 
 
@@ -14,7 +13,7 @@ def create_table(schema_file):
 
 
 def create_table_for_schema_in_directory(directory, tables=None):
-    schemas = get_file_list_from_directory(directory, file_ending=".json")
+    schemas = [i for i in Path(directory).iterdir() if i.suffix == ".json"]
 
     for schema_file in schemas:
         if not tables:
@@ -26,8 +25,8 @@ def create_table_for_schema_in_directory(directory, tables=None):
 
 
 def create_infrastructure_for_schema_in_directory(directory, tables=None):
-    from ._schema import convert_schema_to_infrastructure_code
-    schemas = get_file_list_from_directory(directory, file_ending=".json")
+    from .table_existence import convert_schema_to_infrastructure_code
+    schemas = [i for i in Path(directory).iterdir() if i.suffix == ".json"]
 
     data = dict()
     for schema_file in schemas:
