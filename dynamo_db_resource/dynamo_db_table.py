@@ -754,7 +754,12 @@ class Table:
 
     def delete(self, condition=None, **primary_dict):
         self._primary_key_checker(primary_dict.keys())
-        self.__table.delete_item(Key=primary_dict, ConditionExpression=condition if condition else str())
+        delete_data = {
+            "Key": primary_dict
+        }
+        if condition:
+            delete_data.update({"ConditionExpression": condition})
+        self.__table.delete_item(**delete_data)
 
     def get_and_delete(self, condition=None, **primary_dict):
         response = self.get(**primary_dict)
