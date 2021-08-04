@@ -474,14 +474,32 @@ class Table:
                 [resp] = resp
             return resp
 
+        def return_only_updated(resp):
+            paths = paths_to_data.copy()
+            for pk in self.pk:
+                if [pk] in paths:
+                    paths.pop(paths.index([pk]))
+            return_data = [resp for _ in paths]
+            for index, rd in enumerate(return_data):
+                while paths[index]:
+                    rd = rd[paths[index].pop(0)]
+                return_data[index] = rd
+            if len(return_data) == 1:
+                [return_data] = return_data
+            return return_data
+
+        def handle_response(resp):
+            if "Attributes" in resp:
+                resp = object_with_decimal_to_float(resp["Attributes"])
+                if returns == UpdateReturns.DELETED and remove_data:
+                    resp = return_only_deleted(resp)
+                elif returns in [UpdateReturns.UPDATED_NEW, UpdateReturns.UPDATED_OLD] and paths_to_data:
+                    resp = return_only_updated(resp)
+                return resp
+
         try:
             response = self.__table.update_item(**update_dict)
-            if "Attributes" in response:
-                response = object_with_decimal_to_float(response["Attributes"])
-                if returns == UpdateReturns.DELETED and remove_data:
-                    response = return_only_deleted(response)
-                return response
-            return
+            return handle_response(response)
         except ClientError as CE:
             if CE.response["Error"]["Code"] == "ValidationException":
                 if "document path provided in the update expression is invalid for update" in CE.response[
@@ -514,12 +532,7 @@ class Table:
                             "ReturnValues": returns
                         }
                         response = self.__table.update_item(**update_dict)
-                        if "Attributes" in response:
-                            response = object_with_decimal_to_float(response["Attributes"])
-                            if returns == UpdateReturns.DELETED and remove_data:
-                                response = return_only_deleted(response)
-                            return response
-                        return
+                        return handle_response(response)
                     except FileNotFoundError as FNF:
                         if create_item_if_non_existent:
                             item = primary_dict.copy()

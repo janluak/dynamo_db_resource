@@ -896,11 +896,52 @@ class TestDynamoDB(TestDynamoDBBase):
         response = t.update_attribute(updated_attribute, returns=UpdateReturns.UPDATED_NEW, **test_item_primary)
 
         self.assertEqual(
-            updated_attribute, response
+            249235.93, response
         )
 
         self.assertEqual(
             updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+        )
+
+        t.delete(**test_item_primary)
+
+    def test_update_with_nested_attribute_return_new_values(self):
+        updated_attribute = {"some_nested_dict": {"KEY1": {"subKEY2": 342.98}}}
+        from dynamo_db_resource import Table, UpdateReturns
+
+        t = Table(self.table_name)
+
+        t.put(test_item)
+
+        response = t.update_attribute(updated_attribute, returns=UpdateReturns.UPDATED_NEW, **test_item_primary)
+
+        self.assertEqual(
+            342.98, response
+        )
+
+        self.assertEqual(
+            updated_attribute["some_nested_dict"]["KEY1"]["subKEY2"],
+            t.get(**test_item_primary)["some_nested_dict"]["KEY1"]["subKEY2"],
+        )
+
+        t.delete(**test_item_primary)
+
+    def test_update_with_set_attribute_return_new_values(self):
+        updated_attribute = {"some_string_set": {"abc"}}
+        from dynamo_db_resource import Table, UpdateReturns
+
+        t = Table(self.table_name)
+
+        t.put(test_item)
+
+        response = t.update_attribute(updated_attribute, set_new_attribute_if_not_existent=True, returns=UpdateReturns.UPDATED_NEW, **test_item_primary)
+
+        self.assertEqual(
+            {"abc"}, response
+        )
+
+        self.assertEqual(
+            updated_attribute["some_string_set"], t.get(**test_item_primary)["some_string_set"],
         )
 
         t.delete(**test_item_primary)
@@ -916,7 +957,7 @@ class TestDynamoDB(TestDynamoDBBase):
         response = t.update_attribute(updated_attribute, returns=UpdateReturns.UPDATED_OLD, **test_item_primary)
 
         self.assertEqual(
-            {"some_float": test_item["some_float"]}, response
+            test_item["some_float"], response
         )
 
         self.assertEqual(
