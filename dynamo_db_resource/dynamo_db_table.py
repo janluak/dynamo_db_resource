@@ -459,6 +459,9 @@ class Table:
             "ReturnValues": returns,
             "ConditionExpression": condition_expression
         }
+        for key, value in update_dict.copy().items():
+            if not value:
+                update_dict.pop(key)
 
         def return_only_deleted(resp):
             return_data = [resp for _ in remove_data]
