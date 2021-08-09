@@ -789,6 +789,11 @@ class Table:
             response["Items"] = object_with_decimal_to_float(items)
         return response
 
+    def __return_dict_of_pk_items_from_multiple_item_response(self, object_list: list) -> dict:
+        if len(self.pk) == 1:
+            return {item[self.pk[0]]: item for item in object_list}
+        return {(item[self.pk[0]], item[self.pk[1]]): item for item in object_list}
+
     def index_get(self, index: str, **index_keys: dict):
         """
         get item from index name with index primary
@@ -810,14 +815,14 @@ class Table:
         self._index_key_checker(index, index_keys)
         expression_array = [Key(k).eq(v) for k, v in index_keys.items()]
         key_condition_expression = expression_array[0] if len(expression_array) == 1 else And(*expression_array)
-        try:
-            return self.query(
-                IndexName=index,
-                Select=SelectReturns.ALL_ATTRIBUTES,
-                KeyConditionExpression=key_condition_expression
-            )["Items"][0]
-        except IndexError:
+        object_list = self.query(
+            IndexName=index,
+            Select=SelectReturns.ALL_ATTRIBUTES,
+            KeyConditionExpression=key_condition_expression
+        )["Items"]
+        if len(object_list) == 0:
             raise FileNotFoundError
+        return self.__return_dict_of_pk_items_from_multiple_item_response(object_list)
 
     def batch_get(self, primary_keys: Iterable) -> dict:
         """
@@ -841,8 +846,6 @@ class Table:
             }
         })
         object_list = object_with_decimal_to_float(response["Responses"][self.__table_name])
-        if len(self.pk) == 1:
-            return {item[self.pk[0]]: item for item in object_list}
-        return {(item[self.pk[0]], item[self.pk[1]]): item for item in object_list}
+        return self.__return_dict_of_pk_items_from_multiple_item_response(object_list)
 
 

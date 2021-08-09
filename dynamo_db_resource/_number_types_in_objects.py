@@ -14,7 +14,7 @@ def object_with_decimal_to_float(data):
 
     Returns
     -------
-    dict
+    [dict, list]
 
     """
 

@@ -1520,11 +1520,11 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         response = t.index_get(index="some_string_index", **{"some_string": "some_key1"})
         self.assertEqual(
             "first_key",
-            response["primary_partition_key"]
+            response[("first_key", "range1")]["primary_partition_key"]
         ),
         self.assertEqual(
             t.get(primary_partition_key="first_key", range_key="range1"),
-            response
+            response[("first_key", "range1")]
         )
 
     def test_get_item_from_composite_index(self):
@@ -1534,11 +1534,11 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         response = t.index_get(index="string_n_int_index", **{"some_string": "some_key2", "some_int": 2})
         self.assertEqual(
             "first_key",
-            response["primary_partition_key"]
+            response[("first_key", "range2")]["primary_partition_key"]
         ),
         self.assertEqual(
             t.get(primary_partition_key="first_key", range_key="range2"),
-            response
+            response[("first_key", "range2")]
         )
 
     def test_get_non_existent_item_from_index(self):
