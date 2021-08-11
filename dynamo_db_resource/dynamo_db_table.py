@@ -789,12 +789,14 @@ class Table:
             response["Items"] = object_with_decimal_to_float(items)
         return response
 
-    def __return_dict_of_pk_items_from_multiple_item_response(self, object_list: list) -> dict:
+    def __return_dict_of_pk_items_from_multiple_item_response(self, object_list: list, convert: bool) -> (dict, list):
+        if not convert:
+            return object_list
         if len(self.pk) == 1:
             return {item[self.pk[0]]: item for item in object_list}
         return {(item[self.pk[0]], item[self.pk[1]]): item for item in object_list}
 
-    def index_get(self, index: str, **index_keys: dict):
+    def index_get(self, index: str, return_as_dict_of_primary_keys: bool = False, **index_keys: dict):
         """
         get item from index name with index primary
 
@@ -804,6 +806,9 @@ class Table:
             the name of the index
         index_keys: dict
             dict of the primary_keys
+        return_as_dict_of_primary_keys: bool
+            if the response shall be as an array (input=False) or as a dictionary of items
+             with primary_values as key (input=True)
 
         Returns
         -------
@@ -822,9 +827,9 @@ class Table:
         )["Items"]
         if len(object_list) == 0:
             raise FileNotFoundError
-        return self.__return_dict_of_pk_items_from_multiple_item_response(object_list)
+        return self.__return_dict_of_pk_items_from_multiple_item_response(object_list, return_as_dict_of_primary_keys)
 
-    def batch_get(self, primary_keys: Iterable) -> dict:
+    def batch_get(self, primary_keys: Iterable, return_as_dict_of_primary_keys: bool = False) -> dict:
         """
         get all items with given primary keys
 
@@ -832,6 +837,9 @@ class Table:
         ----------
         primary_keys : Iterable
             primary keys to retrieve items for
+        return_as_dict_of_primary_keys: bool
+            if the response shall be as an array (input=False) or as a dictionary of items
+             with primary_values as key (input=True)
 
         Returns
         -------
@@ -846,6 +854,6 @@ class Table:
             }
         })
         object_list = object_with_decimal_to_float(response["Responses"][self.__table_name])
-        return self.__return_dict_of_pk_items_from_multiple_item_response(object_list)
+        return self.__return_dict_of_pk_items_from_multiple_item_response(object_list, return_as_dict_of_primary_keys)
 
 

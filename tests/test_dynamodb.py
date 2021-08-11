@@ -1468,10 +1468,20 @@ class TestDynamoDB(TestDynamoDBBase):
         second_test_item["primary_partition_key"] = "second_identification_string"
         t.put(second_test_item)
 
-        response = t.batch_get(["some_identification_string", "second_identification_string"])
+        response = t.batch_get(
+            ["some_identification_string", "second_identification_string"],
+            return_as_dict_of_primary_keys=True,
+        )
         self.assertEqual(
             {"some_identification_string": test_item, "second_identification_string": second_test_item},
             response
+        )
+        list_response = t.batch_get(
+            ["some_identification_string", "second_identification_string"],
+        )
+        self.assertEqual(
+            list(response.values()),
+            list_response
         )
 
 
@@ -1517,7 +1527,11 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         from dynamo_db_resource import Table
         t = Table(self.table_name)
 
-        response = t.index_get(index="some_string_index", **{"some_string": "some_key1"})
+        response = t.index_get(
+            index="some_string_index",
+            return_as_dict_of_primary_keys=True,
+            **{"some_string": "some_key1"}
+        )
         self.assertEqual(
             "first_key",
             response[("first_key", "range1")]["primary_partition_key"]
@@ -1526,12 +1540,24 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
             t.get(primary_partition_key="first_key", range_key="range1"),
             response[("first_key", "range1")]
         )
+        list_response = t.index_get(
+            index="some_string_index",
+            **{"some_string": "some_key1"}
+        )
+        self.assertEqual(
+            list(response.values()),
+            list_response
+        )
 
     def test_get_item_from_composite_index(self):
         from dynamo_db_resource import Table
         t = Table(self.table_name)
 
-        response = t.index_get(index="string_n_int_index", **{"some_string": "some_key2", "some_int": 2})
+        response = t.index_get(
+            index="string_n_int_index",
+            return_as_dict_of_primary_keys=True,
+            **{"some_string": "some_key2", "some_int": 2}
+        )
         self.assertEqual(
             "first_key",
             response[("first_key", "range2")]["primary_partition_key"]
@@ -1555,7 +1581,9 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         response = t.batch_get([
             ["first_key", "range1"],
             {"primary_partition_key": "second_key", "range_key": "range1"}
-        ])
+        ],
+            return_as_dict_of_primary_keys=True
+        )
         self.assertEqual(
             {
                 ('first_key', 'range1'): {
@@ -1574,6 +1602,3 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
             response
         )
 
-
-class TestIndexDynamoDB(TestDynamoDBBase):
-    pass
