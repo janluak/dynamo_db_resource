@@ -178,7 +178,7 @@ class Table:
             for path in given_input:
                 path_to_attribute = path[:-1]
                 attribtue = path[-1]
-                sub_schema = self.__schema_validator.get_sub_schema(path_to_attribute)
+                sub_schema, _ = self.__schema_validator.get_sub_schema(path_to_attribute)
                 if attribtue in sub_schema.get("required", list()):
                     self.custom_exception.removing_required_attribute(attribtue, path_to_attribute)
         else:
