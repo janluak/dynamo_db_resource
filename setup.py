@@ -22,7 +22,7 @@ with open(test_requirements_file) as f:
 setup(
     name="dynamo_db_resource",
     version=__version__,
-    description="abstraction of Dynamo DB for AWS Serverless Wrapper",
+    description="abstraction of AWS Dynamo DB",
     url="https://github.com/janluak/dynamo_db_resource",
     long_description=long_description,
     long_description_content_type="text/markdown",
