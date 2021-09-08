@@ -53,6 +53,7 @@ jobs:
         with:
           draft: false
           prerelease: false
+          automatic_release_tag: v${{ steps.get_version.outputs.VERSION }}
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           title: v${{ steps.get_version.outputs.VERSION }}
           files: dist/*
