@@ -1,7 +1,8 @@
 from pathlib import Path
-from fil_io.json import load_single
+import json
 
-DATABASE_SCHEMA = load_single(Path(Path(__file__).parent, "test_data/tables/TableForInfrastructureTest.json"))
+with open(Path(Path(__file__).parent, "test_data/tables/TableForInfrastructureTest.json")) as f:
+    DATABASE_SCHEMA = json.load(f)
 
 
 def test_to_infrastructure_code():
@@ -9,11 +10,11 @@ def test_to_infrastructure_code():
     assert convert_schema_to_infrastructure_code(DATABASE_SCHEMA) == {
         'AttributeDefinitions': [
             {
-                'AttributeName': 'primary_partition_key',
+                'AttributeName': 'some_string',
                 'AttributeType': 'S'
             },
             {
-                'AttributeName': 'some_string',
+                'AttributeName': 'primary_partition_key',
                 'AttributeType': 'S'
             }
         ],

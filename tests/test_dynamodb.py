@@ -2,12 +2,14 @@ from unittest import TestCase, skip
 from os import environ as os_environ
 from pathlib import Path
 from os import chdir, getcwd
-from fil_io.json import load_single
+import json
+import sys
 from copy import deepcopy
 from moto import mock_dynamodb2
 from pytest import fixture
 
-test_item = load_single(Path(Path(__file__).parent, "test_data/items/test_item.json"))
+with open(Path(Path(__file__).parent, "test_data/items/test_item.json")) as fi:
+    test_item = json.load(fi)
 test_item_primary = {"primary_partition_key": "some_identification_string"}
 
 
@@ -51,6 +53,9 @@ class TestDynamoDBBase(TestCase):
     actual_cwd = str()
 
     def setUp(self) -> None:
+        for key in list(sys.modules.keys()):
+            if any(key.startswith(i) for i in ["dynamo_db_resource", "test"]):
+                del sys.modules[key]
         os_environ["STAGE"] = "TEST"
         os_environ["AWS_REGION"] = "eu-central-1"
         os_environ["DYNAMO_DB_RESOURCE_SCHEMA_ORIGIN"] = "file"
@@ -63,9 +68,8 @@ class TestDynamoDBBase(TestCase):
             create_dynamo_db_table_from_schema,
         )
 
-        self.raw_schema = load_single(
-            Path(Path(__file__).parent, f"test_data/tables/{self.table_name}.json")
-        )
+        with open(Path(Path(__file__).parent, f"test_data/tables/{self.table_name}.json")) as f:
+            self.raw_schema = json.load(f)
         create_dynamo_db_table_from_schema(self.raw_schema)
 
     def tearDown(self) -> None:
@@ -1495,7 +1499,8 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         t = Table(self.table_name)
         file_names = ["test_range_item-1_1.json", "test_range_item-1_2.json", "test_range_item-2_1.json"]
         for file_name in file_names:
-            t.put(load_single(Path(Path(__file__).parent, f"test_data/items/{file_name}")))
+            with open(Path(Path(__file__).parent, f"test_data/items/{file_name}")) as f:
+                t.put(json.load(f))
 
     def test_cast_index_keys(self):
         from dynamo_db_resource import Table

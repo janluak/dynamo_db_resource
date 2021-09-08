@@ -1,9 +1,9 @@
 from unittest import TestCase
 from os import environ as os_environ
-from os.path import dirname, realpath
+from pathlib import Path
 from os import chdir, getcwd
-from copy import deepcopy
-from fil_io.json import load_single
+import sys
+import json
 from moto import mock_dynamodb2
 
 
@@ -20,7 +20,7 @@ class TestDynamoDBResource(TestCase):
         os_environ["DYNAMO_DB_RESOURCE_SCHEMA_DIRECTORY"] = "test_data/tables/"
 
         cls.actual_cwd = getcwd()
-        chdir(dirname(realpath(__file__)))
+        chdir(Path(__file__).parent)
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -30,14 +30,17 @@ class TestDynamoDBResource(TestCase):
         del os_environ["DYNAMO_DB_RESOURCE_SCHEMA_DIRECTORY"]
 
     def setUp(self) -> None:
+        for key in list(sys.modules.keys()):
+            if any(key.startswith(i) for i in ["dynamo_db_resource", "test"]):
+                del sys.modules[key]
+
         from dynamo_db_resource.table_existence import (
             create_dynamo_db_table_from_schema,
         )
-        create_dynamo_db_table_from_schema(
-            load_single(
-                f"{dirname(realpath(__file__))}/test_data/tables/{self.table_name}.json"
+        with open(Path(Path(__file__).parent, f"test_data/tables/{self.table_name}.json")) as f:
+            create_dynamo_db_table_from_schema(
+                json.load(f)
             )
-        )
 
         from dynamo_db_resource import Table
         self.table = Table(self.table_name)
@@ -50,9 +53,8 @@ class TestDynamoDBResource(TestCase):
 
 class TestSimpleDynamoDBResource(TestDynamoDBResource):
     table_name = "TableForTests"
-    test_item = load_single(
-        f"{dirname(realpath(__file__))}/test_data/items/test_item.json"
-    )
+    with open(Path(Path(__file__).parent, "test_data/items/test_item.json")) as f:
+        test_item = json.load(f)
     test_item_primary = {"primary_partition_key": "some_identification_string"}
 
     def test_get_item_from_resource(self):

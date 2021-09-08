@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../dynamo_db_resource/dynamodb_schema.json#",
+  "$schema": "https://raw.github.com/janluak/dynamo_db_resource/main/dynamo_db_resource/dynamodb_schema.json#",
   "title": "TableForTests",
   "description": "This is an example schema for creating a dynamo_db table/validating items against",
   "type": "object",
@@ -96,6 +96,19 @@
                   }
                 }
               }
+            },
+            "subKEY5": {
+              "oneOf": [
+                        {
+                            "type": "boolean",
+                            "enum": [
+                                false
+                            ]
+                        },
+                        {
+                            "type": "string"
+                        }
+                    ]
             }
           }
         }

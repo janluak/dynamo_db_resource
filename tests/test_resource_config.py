@@ -1,5 +1,4 @@
 from pytest import fixture
-from os.path import dirname, realpath
 from os import environ as os_environ
 
 

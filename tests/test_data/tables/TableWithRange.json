@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../dynamo_db_resource/dynamodb_schema.json#",
+  "$schema": "https://raw.github.com/janluak/dynamo_db_resource/main/dynamo_db_resource/dynamodb_schema.json#",
   "title": "TableWithRange",
   "description": "This is an example schema for creating a dynamo_db table/validating items against",
   "type": "object",
