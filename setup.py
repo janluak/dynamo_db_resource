@@ -11,6 +11,14 @@ from dynamo_db_resource import __version__
 with open("README.md", "r") as f:
     long_description = f.read()
 
+requirements_file = 'requirements.txt'
+with open(requirements_file) as f:
+    requirements = f.read().splitlines()
+test_requirements_file = 'requirements-test.txt'
+with open(test_requirements_file) as f:
+    test_requirements = f.read().splitlines()
+
+
 setup(
     name="dynamo_db_resource",
     version=__version__,
@@ -32,6 +40,6 @@ setup(
         "Programming Language :: Python :: 3.8",
     ],
     # https://pypi.org/pypi?%3Aaction=list_classifiers
-    install_requires=["boto3", "botocore", "aws_schema"],
-    extra_require={"testing": ["pytest", "fil_io", "moto>=2"]},
+    install_requires=requirements,
+    extra_require={"testing": test_requirements},
 )
