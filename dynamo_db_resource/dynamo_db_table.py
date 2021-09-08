@@ -274,9 +274,10 @@ class Table:
         paths_to_new_data=None,
         values_per_path=None,
         list_operation: (bool, list, tuple) = False,
-        set_operation: (bool, set) = False
+        set_operation: (bool, set) = False,
+        value_operation: bool = False
     ):
-        expression = "set " if not set_operation else "add "
+        expression = "set " if (value_operation or not set_operation) else "add "
         expression_values = dict()
 
         if not paths_to_new_data or not values_per_path:
@@ -286,6 +287,8 @@ class Table:
             list_operation = [list_operation for i in paths_to_new_data]
         if isinstance(set_operation, bool):
             set_operation = [set_operation for i in paths_to_new_data]
+        if isinstance(value_operation, bool):
+            value_operation = [value_operation for i in paths_to_new_data]
 
         attribute_key_mapping = dict()
         letters_used = 0
@@ -295,6 +298,8 @@ class Table:
                 return f"= list_append({string_path_to_attribute}, :{_value_update_chars[path_no]})"
             if set_operation[path_no]:
                 return f":{_value_update_chars[path_no]}"
+            if value_operation[path_no]:
+                return f"= {string_path_to_attribute} + :{_value_update_chars[path_no]}"
             return f"= :{_value_update_chars[path_no]}"
 
         def update_expression_value():
@@ -399,6 +404,7 @@ class Table:
         create_item_if_non_existent,
         list_operation=False,
         set_operation=False,
+        value_operation=False,
         returns: UpdateReturns = UpdateReturns.NONE,
         new_data=None,
         remove_data=None,
@@ -417,7 +423,7 @@ class Table:
                 expression_value_map,
                 expression_name_map,
                 paths_to_data,
-            ) = self._create_update_expression(new_data, list_operation=list_operation, set_operation=set_operation)
+            ) = self._create_update_expression(new_data, list_operation=list_operation, set_operation=set_operation, value_operation=value_operation)
 
         else:
             # ToDo create condition for attribute still required length if schema contains minItems/minProperties
@@ -664,19 +670,26 @@ class Table:
             returns=returns
         )
 
-    def update_increment(self, path_of_to_increment, condition=None, **primary_dict):
-        #  response = table.update_item(
-        #     Key={
-        #         'year': year,
-        #         'title': title
-        #     },
-        #     UpdateExpression="set path.to.attribute = path.to.attribute + :val",
-        #     ExpressionAttributeValues={
-        #         ':val': decimal.Decimal(1)
-        #     },
-        #     ReturnValues="UPDATED_NEW"        # return the new value of the increased attribute
-        # )
-        raise NotImplemented
+    def update_number_drift(
+            self,
+            drift_values_in_dict: dict,
+            set_new_attribute_if_not_existent=False,
+            create_item_if_non_existent=False,
+            returns: UpdateReturns = UpdateReturns.NONE,
+            condition=None,
+            **primary_dict
+    ):
+        return self.__general_update(
+            **primary_dict,
+            new_data=drift_values_in_dict,
+            require_attributes_already_present=False
+            if set_new_attribute_if_not_existent
+            else True,
+            create_item_if_non_existent=create_item_if_non_existent,
+            value_operation=True,
+            direct_condition=condition,
+            returns=returns
+        )
 
     def put(self, item, overwrite=False):
         self._validate_input(item)
