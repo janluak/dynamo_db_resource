@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: get version
         id: get_version
-        run: echo ::set-output name=VERSION::python -c "import ${{ github.event.repository.name }}; print(${{ github.event.repository.name }}.__version__)"
+        run: echo ::set-output name=VERSION::$((python -c "import ${{ github.event.repository.name }}; print(${{ github.event.repository.name }}.__version__)"))
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
