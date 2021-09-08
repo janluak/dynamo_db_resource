@@ -58,11 +58,19 @@ jobs:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           title: v${{ steps.get_version.outputs.VERSION }}
           files: dist/*
+      - name: save dist for upload
+        uses: actions/upload-artifact@v2
+        with:
+          name: dist
+          path: dist
   upload:
     runs-on: ubuntu-latest
     needs: build
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: dist
       - name: Publish a Python distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
