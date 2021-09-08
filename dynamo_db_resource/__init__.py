@@ -1,4 +1,4 @@
-__version__ = "0.3.6"
+__version__ = "0.3.7"
 
 from .dynamo_db_table import Table, UpdateReturns
 from .resource import database_resource

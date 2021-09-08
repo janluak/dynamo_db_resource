@@ -1063,6 +1063,29 @@ class TestDynamoDB(TestDynamoDBBase):
             ],
         )
 
+    def test_update_integer_drift(self):
+        from dynamo_db_resource import Table, UpdateReturns
+        t = Table(self.table_name)
+        t.put(test_item)
+
+        new_value = t.update_number_drift({"some_int": -1}, returns=UpdateReturns.UPDATED_NEW, **test_item_primary)
+        assert new_value == test_item["some_int"] - 1
+        assert t.get(**test_item_primary)["some_int"] == test_item["some_int"] - 1
+
+    def test_update_nested_float_drift(self):
+        from dynamo_db_resource import Table, UpdateReturns
+        t = Table(self.table_name)
+        t.put(test_item)
+        new_value = t.update_number_drift(
+            {"some_nested_dict": {"KEY1": {"subKEY2": 3.5}}},
+            returns=UpdateReturns.UPDATED_NEW,
+            **test_item_primary
+        )
+        assert new_value == test_item["some_nested_dict"]["KEY1"]["subKEY2"] + 3.5
+        assert t.get(
+            **test_item_primary
+        )["some_nested_dict"]["KEY1"]["subKEY2"] == test_item["some_nested_dict"]["KEY1"]["subKEY2"] +3.5
+
     def test_add_attribute(self):
         added_attribute = {
             "some_nested_dict": {
