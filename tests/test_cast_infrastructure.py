@@ -10,11 +10,11 @@ def test_to_infrastructure_code():
     assert convert_schema_to_infrastructure_code(DATABASE_SCHEMA) == {
         'AttributeDefinitions': [
             {
-                'AttributeName': 'some_string',
+                'AttributeName': 'primary_partition_key',
                 'AttributeType': 'S'
             },
             {
-                'AttributeName': 'primary_partition_key',
+                'AttributeName': 'some_string',
                 'AttributeType': 'S'
             }
         ],

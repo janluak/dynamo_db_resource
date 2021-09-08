@@ -59,6 +59,6 @@ def convert_schema_to_infrastructure_code(schema: dict) -> dict:
             keys_to_define.update(set([key_schema["AttributeName"] for key_schema in index_schema["KeySchema"]]))
 
     infrastructure_code["AttributeDefinitions"] = [
-        _create_attribute_definition(schema, key) for key in keys_to_define
+        _create_attribute_definition(schema, key) for key in sorted(list(keys_to_define))
     ]
     return infrastructure_code
