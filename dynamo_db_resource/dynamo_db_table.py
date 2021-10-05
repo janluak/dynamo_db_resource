@@ -205,6 +205,20 @@ class Table:
         elif len(index_primary) > len(self.indexes[index]):
             self.custom_exception.wrong_primary_key(index_primary)
 
+    def _create_projection_expression(self, attributes_to_get):
+        if isinstance(attributes_to_get, str):
+            attributes_to_get = [attributes_to_get]
+        for i in self.pk:
+            if i not in attributes_to_get:
+                attributes_to_get.append(i)
+        for i, v in enumerate(attributes_to_get):
+            if isinstance(v, list):
+                for vi, value in enumerate(v):
+                    if isinstance(value, int):
+                        v[vi] = f"[{value}]"
+                attributes_to_get[i] = ".".join(v)
+        return ",".join(attributes_to_get)
+
     def describe(self):
         from boto3 import client
 
@@ -214,10 +228,33 @@ class Table:
         )
         return response
 
-    def get(self, **primary_dict):
+    def get(self, attributes_to_get: list = None, **primary_dict):
+        """
+        get item specified with primary_dict
+
+        Parameters
+        ----------
+        attributes_to_get: list, optional
+            specify certain attributes to get
+        primary_dict: dict
+            primary keys for the item to retrieve
+
+        Returns
+        -------
+        dict
+
+        """
         self._primary_key_checker(primary_dict)
 
-        response = self.__table.get_item(Key=primary_dict)
+        get_data = {
+            "Key": primary_dict
+        }
+        if attributes_to_get:
+            get_data.update({"ProjectionExpression": self._create_projection_expression(attributes_to_get)})
+
+        response = self.__table.get_item(
+            **get_data
+        )
 
         if "Item" not in response:
             self.custom_exception.not_found_message(primary_dict)
@@ -809,7 +846,13 @@ class Table:
             return {item[self.pk[0]]: item for item in object_list}
         return {(item[self.pk[0]], item[self.pk[1]]): item for item in object_list}
 
-    def index_get(self, index: str, return_as_dict_of_primary_keys: bool = False, **index_keys: dict):
+    def index_get(
+            self,
+            index: str,
+            return_as_dict_of_primary_keys: bool = False,
+            attributes_to_get: list = None,
+            **index_keys: dict
+    ):
         """
         get item from index name with index primary
 
@@ -819,6 +862,8 @@ class Table:
             the name of the index
         index_keys: dict
             dict of the primary_keys
+        attributes_to_get: list, optional
+            specify certain attributes to get
         return_as_dict_of_primary_keys: bool
             if the response shall be as an array (input=False) or as a dictionary of items
              with primary_values as key (input=True)
@@ -833,10 +878,15 @@ class Table:
         self._index_key_checker(index, index_keys)
         expression_array = [Key(k).eq(v) for k, v in index_keys.items()]
         key_condition_expression = expression_array[0] if len(expression_array) == 1 else And(*expression_array)
+        query_data = {
+            "IndexName": index,
+            "Select": SelectReturns.ALL_ATTRIBUTES,
+            "KeyConditionExpression": key_condition_expression
+        }
+        if attributes_to_get:
+            query_data.update({"ProjectionExpression": self._create_projection_expression(attributes_to_get)})
         object_list = self.query(
-            IndexName=index,
-            Select=SelectReturns.ALL_ATTRIBUTES,
-            KeyConditionExpression=key_condition_expression
+            **query_data
         )["Items"]
         if len(object_list) == 0:
             raise FileNotFoundError

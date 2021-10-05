@@ -668,6 +668,51 @@ class TestDynamoDB(TestDynamoDBBase):
             LE.exception.args[0],
         )
 
+    def test_projection_expression(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        self.assertEqual(
+            "some_value,primary_partition_key",
+            t._create_projection_expression("some_value")
+        )
+        self.assertEqual(
+            "some_value,primary_partition_key",
+            t._create_projection_expression(["some_value"])
+        )
+        self.assertEqual(
+            "some_value,some_int,primary_partition_key",
+            t._create_projection_expression(["some_value", "some_int"])
+        )
+        self.assertEqual(
+            "some_nested_dict.KEY1,primary_partition_key",
+            t._create_projection_expression([["some_nested_dict", "KEY1"]])
+        )
+        self.assertEqual(
+            "some_array.[0],primary_partition_key",
+            t._create_projection_expression([["some_array", 0]])
+        )
+
+    @skip("issue in moto: ProjectionExpression not working on get_item (#4370)")
+    def test_get_specified_attributes(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        response = t.get(
+            attributes_to_get=["some_string", ["some_nested_dict", "KEY1", "subKEY1"], ["some_array", 0]],
+            **test_item_primary
+        )
+        self.assertEqual(len(response), 3)
+
+        self.assertEqual(
+            1,
+            response["some_string"]
+        ),
+        self.assertNotIn(
+            "some_dict",
+            response
+        )
+
     def test_put_item_missing_keys(self):
         item = test_item_primary.copy()
         from dynamo_db_resource import Table
@@ -1575,6 +1620,26 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         self.assertEqual(
             list(response.values()),
             list_response
+        )
+
+    def test_get_item_parts_from_index(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        response = t.index_get(
+            index="some_string_index",
+            attributes_to_get=["some_int"],
+            **{"some_string": "some_key1"}
+        )
+        self.assertEqual(len(response[0]), 3)
+
+        self.assertEqual(
+            1,
+            response[0]["some_int"]
+        ),
+        self.assertNotIn(
+            "some_string",
+            response[0]
         )
 
     def test_get_item_from_composite_index(self):
