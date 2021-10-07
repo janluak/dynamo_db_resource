@@ -945,7 +945,7 @@ class TestDynamoDB(TestDynamoDBBase):
         response = t.update_attribute(updated_attribute, returns=UpdateReturns.UPDATED_NEW, **test_item_primary)
 
         self.assertEqual(
-            249235.93, response
+            {"some_float": 249235.93}, response
         )
 
         self.assertEqual(
@@ -965,7 +965,16 @@ class TestDynamoDB(TestDynamoDBBase):
         response = t.update_attribute(updated_attribute, returns=UpdateReturns.UPDATED_NEW, **test_item_primary)
 
         self.assertEqual(
-            342.98, response
+            {
+                "some_nested_dict": {
+                    "KEY1": {
+                        "subKEY1": "subVALUE1",
+                        "subKEY2": 342.98,
+                        "subKEY3": ["first_string"]
+                    }
+                }
+            },
+            response
         )
 
         self.assertEqual(
@@ -986,7 +995,7 @@ class TestDynamoDB(TestDynamoDBBase):
         response = t.update_attribute(updated_attribute, set_new_attribute_if_not_existent=True, returns=UpdateReturns.UPDATED_NEW, **test_item_primary)
 
         self.assertEqual(
-            {"abc"}, response
+            {"some_string_set": {"abc"}}, response
         )
 
         self.assertEqual(
@@ -1006,7 +1015,7 @@ class TestDynamoDB(TestDynamoDBBase):
         response = t.update_attribute(updated_attribute, returns=UpdateReturns.UPDATED_OLD, **test_item_primary)
 
         self.assertEqual(
-            test_item["some_float"], response
+            {"some_float": test_item["some_float"]}, response
         )
 
         self.assertEqual(
@@ -1114,7 +1123,7 @@ class TestDynamoDB(TestDynamoDBBase):
         t.put(test_item)
 
         new_value = t.update_number_drift({"some_int": -1}, returns=UpdateReturns.UPDATED_NEW, **test_item_primary)
-        assert new_value == test_item["some_int"] - 1
+        assert new_value["some_int"] == test_item["some_int"] - 1
         assert t.get(**test_item_primary)["some_int"] == test_item["some_int"] - 1
 
     def test_update_nested_float_drift(self):
@@ -1126,7 +1135,7 @@ class TestDynamoDB(TestDynamoDBBase):
             returns=UpdateReturns.UPDATED_NEW,
             **test_item_primary
         )
-        assert new_value == test_item["some_nested_dict"]["KEY1"]["subKEY2"] + 3.5
+        assert new_value["some_nested_dict"]["KEY1"]["subKEY2"] == test_item["some_nested_dict"]["KEY1"]["subKEY2"] + 3.5
         assert t.get(
             **test_item_primary
         )["some_nested_dict"]["KEY1"]["subKEY2"] == test_item["some_nested_dict"]["KEY1"]["subKEY2"] +3.5

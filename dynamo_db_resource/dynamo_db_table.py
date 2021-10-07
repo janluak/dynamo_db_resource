@@ -520,27 +520,11 @@ class Table:
                 [resp] = resp
             return resp
 
-        def return_only_updated(resp):
-            paths = paths_to_data.copy()
-            for pk in self.pk:
-                if [pk] in paths:
-                    paths.pop(paths.index([pk]))
-            return_data = [resp for _ in paths]
-            for index, rd in enumerate(return_data):
-                while paths[index]:
-                    rd = rd[paths[index].pop(0)]
-                return_data[index] = rd
-            if len(return_data) == 1:
-                [return_data] = return_data
-            return return_data
-
         def handle_response(resp):
             if "Attributes" in resp:
                 resp = object_with_decimal_to_float(resp["Attributes"])
                 if returns == UpdateReturns.DELETED and remove_data:
                     resp = return_only_deleted(resp)
-                elif returns in [UpdateReturns.UPDATED_NEW, UpdateReturns.UPDATED_OLD] and paths_to_data:
-                    resp = return_only_updated(resp)
                 return resp
 
         try:
