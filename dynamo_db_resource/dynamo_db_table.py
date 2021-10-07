@@ -888,6 +888,7 @@ class Table:
         if attributes_to_get:
             expression, name_map = self._create_projection_expression(attributes_to_get)
             query_data.update({"ProjectionExpression": expression, "ExpressionAttributeNames": name_map})
+            query_data.pop("Select")
         object_list = self.query(
             **query_data
         )["Items"]
