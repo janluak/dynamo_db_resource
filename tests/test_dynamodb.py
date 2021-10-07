@@ -673,23 +673,23 @@ class TestDynamoDB(TestDynamoDBBase):
         t = Table(self.table_name)
 
         self.assertEqual(
-            "some_value,primary_partition_key",
+            ("#AA,#AB", {"#AA": "some_value", "#AB": "primary_partition_key"}),
             t._create_projection_expression("some_value")
         )
         self.assertEqual(
-            "some_value,primary_partition_key",
+            ("#AA,#AB", {"#AA": "some_value", "#AB": "primary_partition_key"}),
             t._create_projection_expression(["some_value"])
         )
         self.assertEqual(
-            "some_value,some_int,primary_partition_key",
+            ("#AA,#AB,#AC", {"#AA": "some_value", "#AB": "some_int", "#AC": "primary_partition_key"}),
             t._create_projection_expression(["some_value", "some_int"])
         )
         self.assertEqual(
-            "some_nested_dict.KEY1,primary_partition_key",
+            ("#AA.#AB,#AC", {'#AA': 'some_nested_dict', '#AB': 'KEY1', '#AC': 'primary_partition_key'}),
             t._create_projection_expression([["some_nested_dict", "KEY1"]])
         )
         self.assertEqual(
-            "some_array.[0],primary_partition_key",
+            ("#AA.[0],#AB", {"#AA": "some_array", "#AB": "primary_partition_key"}),
             t._create_projection_expression([["some_array", 0]])
         )
 

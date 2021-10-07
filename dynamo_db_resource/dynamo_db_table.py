@@ -206,6 +206,16 @@ class Table:
             self.custom_exception.wrong_primary_key(index_primary)
 
     def _create_projection_expression(self, attributes_to_get):
+        letter_count = 0
+        attribute_expression_map = dict()
+        attribute_expressions = list()
+
+        def next_expression(attribute_name, lc):
+            letter = f"#{_value_update_chars[lc].upper()}"
+            attribute_expression_map[letter] = attribute_name
+            lc += 1
+            return letter, lc
+
         if isinstance(attributes_to_get, str):
             attributes_to_get = [attributes_to_get]
         for i in self.pk:
@@ -213,11 +223,18 @@ class Table:
                 attributes_to_get.append(i)
         for i, v in enumerate(attributes_to_get):
             if isinstance(v, list):
+                nested_attribute = list()
                 for vi, value in enumerate(v):
                     if isinstance(value, int):
-                        v[vi] = f"[{value}]"
-                attributes_to_get[i] = ".".join(v)
-        return ",".join(attributes_to_get)
+                        nested_attribute.append(f"[{value}]")
+                    else:
+                        l, letter_count = next_expression(value, letter_count)
+                        nested_attribute.append(l)
+                attribute_expressions.append(".".join(nested_attribute))
+            else:
+                l, letter_count = next_expression(v, letter_count)
+                attribute_expressions.append(l)
+        return ",".join(attribute_expressions), attribute_expression_map
 
     def describe(self):
         from boto3 import client
@@ -250,7 +267,8 @@ class Table:
             "Key": primary_dict
         }
         if attributes_to_get:
-            get_data.update({"ProjectionExpression": self._create_projection_expression(attributes_to_get)})
+            expression, name_map = self._create_projection_expression(attributes_to_get)
+            get_data.update({"ProjectionExpression": expression, "ExpressionAttributeNames": name_map})
 
         response = self.__table.get_item(
             **get_data
@@ -868,7 +886,8 @@ class Table:
             "KeyConditionExpression": key_condition_expression
         }
         if attributes_to_get:
-            query_data.update({"ProjectionExpression": self._create_projection_expression(attributes_to_get)})
+            expression, name_map = self._create_projection_expression(attributes_to_get)
+            query_data.update({"ProjectionExpression": expression, "ExpressionAttributeNames": name_map})
         object_list = self.query(
             **query_data
         )["Items"]
