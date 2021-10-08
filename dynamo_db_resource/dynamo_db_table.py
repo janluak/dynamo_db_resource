@@ -817,9 +817,15 @@ class Table:
         self.__table.delete_item(**delete_data)
 
     def get_and_delete(self, condition=None, **primary_dict):
-        response = self.get(**primary_dict)
-        self.delete(condition=condition, **primary_dict)
-        return response
+        self._primary_key_checker(primary_dict.keys())
+        delete_data = {
+            "Key": primary_dict,
+            "ReturnValues": UpdateReturns.ALL_OLD
+        }
+        if condition:
+            delete_data.update({"ConditionExpression": condition})
+        response = self.__table.delete_item(**delete_data)
+        return object_with_decimal_to_float(response["Attributes"])
 
     def scan(self):
         response = self.__table.scan()
