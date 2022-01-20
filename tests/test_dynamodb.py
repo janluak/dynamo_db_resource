@@ -1852,3 +1852,146 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
             response
         )
 
+    def test_query_range_condition(self):
+        from dynamo_db_resource import Table
+        from dynamo_db_resource.conditions import BeginsWith
+        t = Table(self.table_name)
+
+        response = t.query(
+            range_conditions=BeginsWith("2021"),
+            primary_partition_key="first_key"
+        )
+        response.pop("ResponseMetadata")
+        self.assertEqual(
+            {
+                "Count": 1,
+                "ScannedCount": 14,
+                "Items":
+                    [
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2021-01-01 12:00",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        }
+                    ]
+            },
+            response
+        )
+
+    def test_query_range_condition_page(self):
+        from dynamo_db_resource import Table
+        from dynamo_db_resource.conditions import BeginsWith
+        t = Table(self.table_name)
+
+        response = t.query(
+            max_results=3,
+            range_conditions=BeginsWith("2020-01-01"),
+            offset_last_key="2020-01-01 12:02",
+            primary_partition_key="first_key"
+        )
+        response.pop("ResponseMetadata")
+        self.assertEqual(
+            {
+                "Count": 3,
+                "ScannedCount": 14,
+                "LastEvaluatedKey": "2020-01-01 14:00",
+                "Items":
+                    [
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-01-01 12:03",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        },
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-01-01 13:00",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        },
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-01-01 14:00",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        }
+                    ]
+            },
+            response
+        )
+
+    def test_query_range_condition_multiple(self):
+        from dynamo_db_resource import Table
+        from dynamo_db_resource.conditions import GreaterThan, BeginsWith
+        t = Table(self.table_name)
+
+        response = t.query(
+            range_conditions=[GreaterThan("2020-02-03 12:00"), BeginsWith("2020-02")],
+            primary_partition_key="first_key"
+        )
+        response.pop("ResponseMetadata")
+        self.assertEqual(
+            {
+                "Count": 3,
+                "ScannedCount": 14,
+                "Items":
+                    [
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-02-03 13:00",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        },
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-02-04 13:00",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        },
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2021-01-01 12:00",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        }
+                    ]
+            },
+            response
+        )
+
+    @skip("working on real dynamo_db but not with moto")
+    def test_query_range_condition_less_equal(self):
+        from dynamo_db_resource import Table
+        from dynamo_db_resource.conditions import GreaterThan, LessThanEquals
+        t = Table(self.table_name)
+
+        response = t.query(
+            range_conditions=[GreaterThan("2020-02-03 12:00"), LessThanEquals("2020-02-04 13:00")],
+            primary_partition_key="first_key"
+        )
+        response.pop("ResponseMetadata")
+        self.assertEqual(
+            {
+                "Count": 2,
+                "ScannedCount": 14,
+                "Items":
+                    [
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-02-03 13:00",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        },
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-02-04 13:00",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        }
+                    ]
+            },
+            response
+        )
+
+

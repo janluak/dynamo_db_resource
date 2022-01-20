@@ -16,7 +16,7 @@ from inspect import stack
 from os import environ as os_environ
 from string import ascii_lowercase
 from boto3 import resource
-from boto3.dynamodb.conditions import Key, And, ConditionExpressionBuilder
+from boto3.dynamodb.conditions import Key, And, ConditionExpressionBuilder, ConditionBase
 from botocore.exceptions import ClientError
 from copy import deepcopy
 from typing import Iterable
@@ -844,6 +844,7 @@ class Table:
             attributes_to_get: list = None,
             max_results: int = None,
             offset_last_key: (str, int, float) = None,
+            range_conditions: (Iterable[ConditionBase], ConditionBase) = None,
             index: str = None,
             **query_keys
     ) -> dict:
@@ -858,6 +859,8 @@ class Table:
             limit the number of items to return
         offset_last_key: str, int, float, optional
             for pagination: if many values provide the last key that shall not be included
+        range_conditions: Iterable[ConditionBase], ConditionBase, optional
+            specify conditions for the range key to match
         index: str, optional
             if query should be executed on index
         query_keys: str
@@ -871,16 +874,31 @@ class Table:
 
         """
         query_data = dict()
+        range_key = None
+
         if not index:
             query_keys = self._cast_primary_keys(query_keys)
+            primary_key = self.pk[0]
+            if len(self.pk) > 1:
+                range_key = self.pk[1]
         else:
             query_keys = self._cast_index_keys(index, query_keys)
             query_data["IndexName"] = index
-        key_condition_expression_array = [Key(k).eq(v) for k, v in query_keys.items()]
-        if len(query_keys) > 1:
-            query_data["KeyConditionExpression"] = And(*key_condition_expression_array)
+            primary_key = self.indexes[index][0]
+            if len(self.indexes[index]) > 1:
+                range_key = self.indexes[index][1]
+
+        condition_expression_array = [Key(k).eq(v) for k, v in query_keys.items()]
+        if range_conditions:
+            if not isinstance(range_conditions, list):
+                range_conditions = [range_conditions]
+            for i, condition in enumerate(range_conditions):
+                condition_expression_array.append(type(condition)(Key(range_key), *condition._values))
+
+        if len(condition_expression_array) > 1:
+            query_data["KeyConditionExpression"], query_data["ExpressionAttributeNames"], query_data["ExpressionAttributeValues"] = ConditionExpressionBuilder().build_expression(And(*condition_expression_array))
         else:
-            query_data["KeyConditionExpression"] = key_condition_expression_array[0]
+            query_data["KeyConditionExpression"], query_data["ExpressionAttributeNames"], query_data["ExpressionAttributeValues"] = ConditionExpressionBuilder().build_expression(condition_expression_array[0])
 
         if attributes_to_get:
             expression, name_map = self._create_projection_expression(attributes_to_get)
@@ -892,11 +910,11 @@ class Table:
             query_data["Limit"] = max_results
         if offset_last_key:
             if not index:
-                start_key = {self.pk[0]: query_keys[self.pk[0]], self.pk[1]: offset_last_key}
+                start_key = {primary_key: query_keys[primary_key], range_key: offset_last_key}
             else:
                 start_key = {
-                    self.indexes[index][0]: query_keys[self.indexes[index][0]],
-                    self.indexes[index][1]: offset_last_key
+                    primary_key: query_keys[primary_key],
+                    range_key: offset_last_key
                 }
             query_data["ExclusiveStartKey"] = start_key
 
@@ -906,7 +924,7 @@ class Table:
         if items := response.get("Items", list()):
             response["Items"] = object_with_decimal_to_float(items)
         if "LastEvaluatedKey" in response:
-            response["LastEvaluatedKey"] = response["LastEvaluatedKey"][self.indexes[index][1] if index else self.pk[1]]
+            response["LastEvaluatedKey"] = response["LastEvaluatedKey"][range_key]
         return response
 
     def __return_dict_of_pk_items_from_multiple_item_response(self, object_list: list, convert: bool) -> (dict, list):
