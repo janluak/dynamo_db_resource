@@ -253,7 +253,7 @@ class Table:
         ----------
         attributes_to_get: list, optional
             specify certain attributes to get
-        primary_dict: dict
+        primary_dict: str
             primary keys for the item to retrieve
 
         Returns
