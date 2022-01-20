@@ -1574,9 +1574,11 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         from dynamo_db_resource import Table
 
         t = Table(self.table_name)
-        file_names = ["test_range_item-1_1.json", "test_range_item-1_2.json", "test_range_item-2_1.json"]
+        file_names = Path(Path(__file__).parent, "test_data/items").iterdir()
         for file_name in file_names:
-            with open(Path(Path(__file__).parent, f"test_data/items/{file_name}")) as f:
+            if not file_name.stem.startswith("test_range"):
+                continue
+            with open(Path(Path(__file__).parent, file_name)) as f:
                 t.put(json.load(f))
 
     def test_cast_index_keys(self):
@@ -1597,13 +1599,12 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
 
     def test_raw_query(self):
         from dynamo_db_resource import Table
-        from dynamo_db_resource.conditions import Key
         t = Table(self.table_name)
 
         response = t.query(
-            KeyConditionExpression=Key("primary_partition_key").eq("first_key")
+            primary_partition_key="first_key"
         )
-        self.assertEqual(response["Count"], 2)
+        self.assertEqual(response["Count"], 13)
 
     def test_get_item_from_index(self):
         from dynamo_db_resource import Table
@@ -1616,11 +1617,11 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         )
         self.assertEqual(
             "first_key",
-            response[("first_key", "range1")]["primary_partition_key"]
+            response[("first_key", "2020-01-01 12:01")]["primary_partition_key"]
         ),
         self.assertEqual(
-            t.get(primary_partition_key="first_key", range_key="range1"),
-            response[("first_key", "range1")]
+            t.get(primary_partition_key="first_key", range_key="2020-01-01 12:01"),
+            response[("first_key", "2020-01-01 12:01")]
         )
         list_response = t.index_get(
             index="some_string_index",
@@ -1662,11 +1663,11 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         )
         self.assertEqual(
             "first_key",
-            response[("first_key", "range2")]["primary_partition_key"]
+            response[("first_key", "2020-01-01 12:02")]["primary_partition_key"]
         ),
         self.assertEqual(
-            t.get(primary_partition_key="first_key", range_key="range2"),
-            response[("first_key", "range2")]
+            t.get(primary_partition_key="first_key", range_key="2020-01-01 12:02"),
+            response[("first_key", "2020-01-01 12:02")]
         )
 
     def test_get_non_existent_item_from_index(self):
@@ -1681,16 +1682,16 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         t = Table(self.table_name)
 
         response = t.batch_get([
-            ["first_key", "range1"],
+            ["first_key", "2020-01-01 12:01"],
             {"primary_partition_key": "second_key", "range_key": "range1"}
         ],
             return_as_dict_of_primary_keys=True
         )
         self.assertEqual(
             {
-                ('first_key', 'range1'): {
+                ('first_key', '2020-01-01 12:01'): {
                     'primary_partition_key': 'first_key',
-                    'range_key': 'range1',
+                    'range_key': '2020-01-01 12:01',
                     'some_int': 1,
                     'some_string': 'some_key1'
                 },
@@ -1701,6 +1702,153 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
                     'some_string': 'some_key3'
                 }
              },
+            response
+        )
+
+    def test_paginate_first(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        response = t.query(max_results=3, primary_partition_key="first_key")
+        response.pop("ResponseMetadata")
+        self.assertEqual(
+            {
+                "Count": 3,
+                "ScannedCount": 14,
+                "LastEvaluatedKey": "2020-01-01 12:03",
+                "Items":
+                    [
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-01-01 12:01",
+                            "some_int": 1,
+                            "some_string": "some_key1"
+                        },
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-01-01 12:02",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        },
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-01-01 12:03",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        }
+                    ]
+            },
+            response
+        )
+
+    def test_paginate_second(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        response = t.query(
+            max_results=3,
+            offset_last_key="2020-01-01 12:03",
+            primary_partition_key="first_key"
+        )
+        response.pop("ResponseMetadata")
+        self.assertEqual(
+            {
+                "Count": 3,
+                "ScannedCount": 14,
+                "LastEvaluatedKey": "2020-01-01 14:20",
+                "Items":
+                    [
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-01-01 13:00",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        },
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-01-01 14:00",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        },
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-01-01 14:20",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        }
+                    ]
+            },
+            response
+        )
+
+    def test_paginate_specific_attributs(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        response = t.query(
+            attributes_to_get=["some_string"],
+            max_results=3,
+            offset_last_key="2020-01-01 12:03",
+            primary_partition_key="first_key"
+        )
+        response.pop("ResponseMetadata")
+        self.assertEqual(
+            {
+                "Count": 3,
+                "ScannedCount": 14,
+                "LastEvaluatedKey": "2020-01-01 14:20",
+                "Items":
+                    [
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-01-01 13:00",
+                            "some_string": "some_key2"
+                        },
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-01-01 14:00",
+                            "some_string": "some_key2"
+                        },
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-01-01 14:20",
+                            "some_string": "some_key2"
+                        }
+                    ]
+            },
+            response
+        )
+
+    def test_paginate_last(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        response = t.query(
+            max_results=3,
+            offset_last_key="2020-02-03 13:00",
+            primary_partition_key="first_key"
+        )
+        response.pop("ResponseMetadata")
+        self.assertEqual(
+            {
+                "Count": 2,
+                "ScannedCount": 14,
+                "Items":
+                    [
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2020-02-04 13:00",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        },
+                        {
+                            "primary_partition_key": "first_key",
+                            "range_key": "2021-01-01 12:00",
+                            "some_int": 2,
+                            "some_string": "some_key2"
+                        }
+                    ]
+            },
             response
         )
 

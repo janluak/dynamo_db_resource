@@ -1,6 +1,6 @@
 {
   "primary_partition_key": "first_key",
-  "range_key": "2020-01-01 12:02",
+  "range_key": "2020-01-02 09:00",
   "some_int": 2,
   "some_string": "some_key2"
 }

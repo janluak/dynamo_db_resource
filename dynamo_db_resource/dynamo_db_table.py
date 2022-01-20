@@ -839,12 +839,74 @@ class Table:
             for item in self.scan()["Items"]:
                 batch.delete_item(Key={key: item[key] for key in self.pk})
 
-    def query(self, **query_data):
+    def query(
+            self,
+            attributes_to_get: list = None,
+            max_results: int = None,
+            offset_last_key: (str, int, float) = None,
+            index: str = None,
+            **query_keys
+    ) -> dict:
+        """
+        query data based
+
+        Parameters
+        ----------
+        attributes_to_get: list
+            specify the attritbutes to return (for decreasing transferred data amount)
+        max_results: int, optional
+            limit the number of items to return
+        offset_last_key: str, int, float, optional
+            for pagination: if many values provide the last key that shall not be included
+        index: str, optional
+            if query should be executed on index
+        query_keys: str
+            primary or index keys
+
+        Returns
+        -------
+        dict
+            Count: int, ScannedCount: int, Items: list, (LastEvaluatedKey: (str, int, float))
+            items returned, number scanned for operation, actual items, last range key returned (for pagination)
+
+        """
+        query_data = dict()
+        if not index:
+            query_keys = self._cast_primary_keys(query_keys)
+        else:
+            query_keys = self._cast_index_keys(index, query_keys)
+            query_data["IndexName"] = index
+        key_condition_expression_array = [Key(k).eq(v) for k, v in query_keys.items()]
+        if len(query_keys) > 1:
+            query_data["KeyConditionExpression"] = And(*key_condition_expression_array)
+        else:
+            query_data["KeyConditionExpression"] = key_condition_expression_array[0]
+
+        if attributes_to_get:
+            expression, name_map = self._create_projection_expression(attributes_to_get)
+            query_data.update({"ProjectionExpression": expression, "ExpressionAttributeNames": name_map})
+        else:
+            query_data["Select"] = SelectReturns.ALL_ATTRIBUTES
+
+        if max_results:
+            query_data["Limit"] = max_results
+        if offset_last_key:
+            if not index:
+                start_key = {self.pk[0]: query_keys[self.pk[0]], self.pk[1]: offset_last_key}
+            else:
+                start_key = {
+                    self.indexes[index][0]: query_keys[self.indexes[index][0]],
+                    self.indexes[index][1]: offset_last_key
+                }
+            query_data["ExclusiveStartKey"] = start_key
+
         response = self.__table.query(
             **query_data
         )
         if items := response.get("Items", list()):
             response["Items"] = object_with_decimal_to_float(items)
+        if "LastEvaluatedKey" in response:
+            response["LastEvaluatedKey"] = response["LastEvaluatedKey"][self.indexes[index][1] if index else self.pk[1]]
         return response
 
     def __return_dict_of_pk_items_from_multiple_item_response(self, object_list: list, convert: bool) -> (dict, list):
@@ -884,19 +946,10 @@ class Table:
         """
         index_keys = self._cast_index_keys(index, index_keys)
         self._index_key_checker(index, index_keys)
-        expression_array = [Key(k).eq(v) for k, v in index_keys.items()]
-        key_condition_expression = expression_array[0] if len(expression_array) == 1 else And(*expression_array)
-        query_data = {
-            "IndexName": index,
-            "Select": SelectReturns.ALL_ATTRIBUTES,
-            "KeyConditionExpression": key_condition_expression
-        }
-        if attributes_to_get:
-            expression, name_map = self._create_projection_expression(attributes_to_get)
-            query_data.update({"ProjectionExpression": expression, "ExpressionAttributeNames": name_map})
-            query_data.pop("Select")
         object_list = self.query(
-            **query_data
+            index=index,
+            attributes_to_get=attributes_to_get,
+            **index_keys
         )["Items"]
         if len(object_list) == 0:
             raise FileNotFoundError
