@@ -1858,7 +1858,7 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         t = Table(self.table_name)
 
         response = t.query(
-            range_conditions=BeginsWith("2021"),
+            range_condition=BeginsWith("2021"),
             primary_partition_key="first_key"
         )
         response.pop("ResponseMetadata")
@@ -1886,7 +1886,7 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
 
         response = t.query(
             max_results=3,
-            range_conditions=BeginsWith("2020-01-01"),
+            range_condition=BeginsWith("2020-01-01"),
             offset_last_key="2020-01-01 12:02",
             primary_partition_key="first_key"
         )
@@ -1921,13 +1921,14 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
             response
         )
 
-    def test_query_range_condition_multiple(self):
+    def test_query_range_condition_with_attributes_to_get(self):
         from dynamo_db_resource import Table
         from dynamo_db_resource.conditions import GreaterThan, BeginsWith
         t = Table(self.table_name)
 
         response = t.query(
-            range_conditions=[GreaterThan("2020-02-03 12:00"), BeginsWith("2020-02")],
+            range_condition=GreaterThan("2020-02-03 12:00"),
+            attributes_to_get=["some_int"],
             primary_partition_key="first_key"
         )
         response.pop("ResponseMetadata")
@@ -1941,33 +1942,29 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
                             "primary_partition_key": "first_key",
                             "range_key": "2020-02-03 13:00",
                             "some_int": 2,
-                            "some_string": "some_key2"
                         },
                         {
                             "primary_partition_key": "first_key",
                             "range_key": "2020-02-04 13:00",
                             "some_int": 2,
-                            "some_string": "some_key2"
                         },
                         {
                             "primary_partition_key": "first_key",
                             "range_key": "2021-01-01 12:00",
                             "some_int": 2,
-                            "some_string": "some_key2"
                         }
                     ]
             },
             response
         )
 
-    @skip("working on real dynamo_db but not with moto")
-    def test_query_range_condition_less_equal(self):
+    def test_query_range_condition_between(self):
         from dynamo_db_resource import Table
-        from dynamo_db_resource.conditions import GreaterThan, LessThanEquals
+        from dynamo_db_resource.conditions import Between
         t = Table(self.table_name)
 
         response = t.query(
-            range_conditions=[GreaterThan("2020-02-03 12:00"), LessThanEquals("2020-02-04 13:00")],
+            range_condition=Between("2020-02-03 12:05", "2020-02-04 13:00"),
             primary_partition_key="first_key"
         )
         response.pop("ResponseMetadata")

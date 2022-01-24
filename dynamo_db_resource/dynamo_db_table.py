@@ -64,6 +64,15 @@ def _cast_table_name(table_name: str) -> str:
     return "-".join(name_components)
 
 
+def _combine_and_conditions(conditions: list):
+    if len(conditions) == 1:
+        con = conditions[0]
+
+    else:
+        con = And(*conditions)
+    return ConditionExpressionBuilder().build_expression(con)
+
+
 class Table:
     def __init__(self, table_name, special_resource_config: dict = False):
         self.__table_name = table_name
@@ -205,12 +214,17 @@ class Table:
         elif len(index_primary) > len(self.indexes[index]):
             self.custom_exception.wrong_primary_key(index_primary)
 
-    def _create_projection_expression(self, attributes_to_get):
+    def _create_projection_expression(self, attributes_to_get, existing_data: dict = None):
+        if existing_data is None:
+            existing_data = dict()
+
         letter_count = 0
         attribute_expression_map = dict()
         attribute_expressions = list()
 
         def next_expression(attribute_name, lc):
+            if attribute_name in existing_data.get("ExpressionAttributeNames", dict()).values():
+                return {va: k for k, va in existing_data.get("ExpressionAttributeNames", dict()).items()}[attribute_name], lc
             letter = f"#{_value_update_chars[lc].upper()}"
             attribute_expression_map[letter] = attribute_name
             lc += 1
@@ -844,7 +858,7 @@ class Table:
             attributes_to_get: list = None,
             max_results: int = None,
             offset_last_key: (str, int, float) = None,
-            range_conditions: (Iterable[ConditionBase], ConditionBase) = None,
+            range_condition: ConditionBase = None,
             index: str = None,
             **query_keys
     ) -> dict:
@@ -859,7 +873,7 @@ class Table:
             limit the number of items to return
         offset_last_key: str, int, float, optional
             for pagination: if many values provide the last key that shall not be included
-        range_conditions: Iterable[ConditionBase], ConditionBase, optional
+        range_condition: ConditionBase, optional
             specify conditions for the range key to match
         index: str, optional
             if query should be executed on index
@@ -889,20 +903,15 @@ class Table:
                 range_key = self.indexes[index][1]
 
         condition_expression_array = [Key(k).eq(v) for k, v in query_keys.items()]
-        if range_conditions:
-            if not isinstance(range_conditions, list):
-                range_conditions = [range_conditions]
-            for i, condition in enumerate(range_conditions):
-                condition_expression_array.append(type(condition)(Key(range_key), *condition._values))
+        if range_condition:
+            condition_expression_array.append(type(range_condition)(Key(range_key), *range_condition._values))
 
-        if len(condition_expression_array) > 1:
-            query_data["KeyConditionExpression"], query_data["ExpressionAttributeNames"], query_data["ExpressionAttributeValues"] = ConditionExpressionBuilder().build_expression(And(*condition_expression_array))
-        else:
-            query_data["KeyConditionExpression"], query_data["ExpressionAttributeNames"], query_data["ExpressionAttributeValues"] = ConditionExpressionBuilder().build_expression(condition_expression_array[0])
+        query_data["KeyConditionExpression"], query_data["ExpressionAttributeNames"], query_data["ExpressionAttributeValues"] = _combine_and_conditions(condition_expression_array)
 
         if attributes_to_get:
-            expression, name_map = self._create_projection_expression(attributes_to_get)
-            query_data.update({"ProjectionExpression": expression, "ExpressionAttributeNames": name_map})
+            expression, name_map = self._create_projection_expression(attributes_to_get, query_data)
+            query_data["ProjectionExpression"] = expression
+            query_data["ExpressionAttributeNames"].update(name_map)
         else:
             query_data["Select"] = SelectReturns.ALL_ATTRIBUTES
 
