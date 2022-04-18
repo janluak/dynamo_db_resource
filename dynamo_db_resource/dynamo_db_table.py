@@ -19,7 +19,7 @@ from boto3 import resource
 from boto3.dynamodb.conditions import Key, And, ConditionExpressionBuilder, ConditionBase
 from botocore.exceptions import ClientError
 from copy import deepcopy
-from typing import Iterable
+from typing import Iterable, List
 
 _ddb_resource = resource("dynamodb", **{"region_name": os_environ["AWS_REGION"] if "AWS_REGION" in os_environ else "us-east-1"})
 
@@ -704,7 +704,7 @@ class Table:
 
     def update_add_set(
         self,
-        new_data,
+        new_data: dict,
         set_new_attribute_if_not_existent=False,
         create_item_if_non_existent=False,
         returns: UpdateReturns = UpdateReturns.NONE,
@@ -804,18 +804,23 @@ class Table:
     def remove_from_set(
             self,
             path_to_set: list,
-            items_to_delete: (list, set),
+            items_to_delete: (List[set], set),
             returns: UpdateReturns = UpdateReturns.NONE,
             condition=None,
             **primary_dict,
     ):
         if not isinstance(path_to_set[0], list):
             path_to_set = [path_to_set]
+        if not isinstance(items_to_delete, list):
+            items_to_delete = [items_to_delete]
+        for i, s in enumerate(items_to_delete):
+            if not isinstance(s, set):
+                items_to_delete[i] = set(s)
         return self.__general_update(
             require_attributes_already_present=True,
             create_item_if_non_existent=False,
             remove_data=path_to_set.copy(),
-            remove_set_item=items_to_delete if isinstance(items_to_delete, list) else [items_to_delete],
+            remove_set_item=items_to_delete,
             returns=returns,
             direct_condition=condition,
             **primary_dict
