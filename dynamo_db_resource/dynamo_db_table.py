@@ -862,7 +862,7 @@ class Table:
             self,
             attributes_to_get: list = None,
             max_results: int = None,
-            offset_last_key: (str, int, float) = None,
+            offset_last_key: (str, int, float, dict) = None,
             range_condition: ConditionBase = None,
             index: str = None,
             **query_keys
@@ -873,10 +873,10 @@ class Table:
         Parameters
         ----------
         attributes_to_get: list
-            specify the attritbutes to return (for decreasing transferred data amount)
+            specify the attributes to return (for decreasing transferred data amount)
         max_results: int, optional
             limit the number of items to return
-        offset_last_key: str, int, float, optional
+        offset_last_key: str, int, float, dict, optional
             for pagination: if many values provide the last key that shall not be included
         range_condition: ConditionBase, optional
             specify conditions for the range key to match
@@ -901,6 +901,14 @@ class Table:
             if len(self.pk) > 1:
                 range_key = self.pk[1]
         else:
+            if offset_last_key is not None and not isinstance(offset_last_key, dict):
+                raise TypeError(
+                    {
+                        "statusCode": 400,
+                        "body": "querying on index requires dictionary with last evaluated values",
+                        "headers": {"Content-Type": "text/plain"},
+                    }
+                )
             query_keys = self._cast_index_keys(index, query_keys)
             query_data["IndexName"] = index
             primary_key = self.indexes[index][0]
@@ -926,10 +934,7 @@ class Table:
             if not index:
                 start_key = {primary_key: query_keys[primary_key], range_key: offset_last_key}
             else:
-                start_key = {
-                    primary_key: query_keys[primary_key],
-                    range_key: offset_last_key
-                }
+                start_key = object_with_float_to_decimal(offset_last_key)
             query_data["ExclusiveStartKey"] = start_key
 
         response = self.__table.query(
@@ -938,7 +943,11 @@ class Table:
         if items := response.get("Items", list()):
             response["Items"] = object_with_decimal_to_float(items)
         if "LastEvaluatedKey" in response:
-            response["LastEvaluatedKey"] = response["LastEvaluatedKey"][range_key]
+            response["LastEvaluatedKey"] = object_with_decimal_to_float(response["LastEvaluatedKey"])
+            if not index:
+                response["LastEvaluatedKey"] = response["LastEvaluatedKey"][range_key]
+            else:
+                response["LastEvaluatedKey"] = response["LastEvaluatedKey"]
         return response
 
     def __return_dict_of_pk_items_from_multiple_item_response(self, object_list: list, convert: bool) -> (dict, list):

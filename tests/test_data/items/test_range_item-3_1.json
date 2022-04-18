@@ -1,0 +1,7 @@
+{
+  "primary_partition_key": "third_key",
+  "range_key": "range1",
+  "some_int": 1,
+  "some_float": 1.1,
+  "some_string": "some_key4"
+}

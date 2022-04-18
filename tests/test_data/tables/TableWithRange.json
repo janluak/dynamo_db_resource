@@ -51,6 +51,26 @@
           "ReadCapacityUnits": 1,
           "WriteCapacityUnits": 1
         }
+      },
+      {
+        "IndexName": "string_n_float_index",
+        "KeySchema": [
+          {
+            "AttributeName": "some_string",
+            "KeyType": "HASH"
+          },
+          {
+            "AttributeName": "some_float",
+            "KeyType": "RANGE"
+          }
+        ],
+        "Projection": {
+          "ProjectionType": "ALL"
+        },
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": 1,
+          "WriteCapacityUnits": 1
+        }
       }
     ],
     "ProvisionedThroughput": {
@@ -77,6 +97,10 @@
     "some_int": {
       "description": "some key containing any integers",
       "type": "integer"
+    },
+    "some_float": {
+      "description": "some key containing any floats",
+      "type": "number"
     }
   },
   "required": [

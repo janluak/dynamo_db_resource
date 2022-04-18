@@ -1,4 +1,4 @@
-from unittest import TestCase, skip
+from unittest import TestCase, skip, mock
 from os import environ as os_environ
 from pathlib import Path
 from os import chdir, getcwd
@@ -1714,7 +1714,7 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         self.assertEqual(
             {
                 "Count": 3,
-                "ScannedCount": 14,
+                "ScannedCount": mock.ANY,
                 "LastEvaluatedKey": "2020-01-01 12:03",
                 "Items":
                     [
@@ -1754,7 +1754,7 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         self.assertEqual(
             {
                 "Count": 3,
-                "ScannedCount": 14,
+                "ScannedCount": mock.ANY,
                 "LastEvaluatedKey": "2020-01-01 14:20",
                 "Items":
                     [
@@ -1795,7 +1795,7 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         self.assertEqual(
             {
                 "Count": 3,
-                "ScannedCount": 14,
+                "ScannedCount": mock.ANY,
                 "LastEvaluatedKey": "2020-01-01 14:20",
                 "Items":
                     [
@@ -1832,7 +1832,7 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         self.assertEqual(
             {
                 "Count": 2,
-                "ScannedCount": 14,
+                "ScannedCount": mock.ANY,
                 "Items":
                     [
                         {
@@ -1852,6 +1852,92 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
             response
         )
 
+    def test_query_on_index_with_single_offset_key(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        with self.assertRaises(TypeError) as TE:
+            t.query(
+                index="string_n_int_index",
+                max_results=3,
+                some_string="some_key2",
+                offset_last_key=2
+            )
+        self.assertEqual(
+            {
+                "statusCode": 400,
+                "body": "querying on index requires dictionary with last evaluated values",
+                "headers": {"Content-Type": "text/plain"},
+            },
+            TE.exception.args[0],
+        )
+
+    def test_query_on_index(self):
+        from dynamo_db_resource import Table
+        t = Table(self.table_name)
+
+        response = t.query(
+            index="string_n_float_index",
+            max_results=2,
+            some_string="some_key4",
+        )
+        response.pop("ResponseMetadata")
+        self.assertEqual(
+            {
+                "Count": 2,
+                "ScannedCount": mock.ANY,
+                "LastEvaluatedKey": {
+                    "some_float": 2.2,
+                    "primary_partition_key": "third_key",
+                    "range_key": "range2",
+                    "some_string": "some_key4"
+                },
+                "Items":
+                    [
+                        {
+                            'primary_partition_key': 'third_key',
+                            'range_key': 'range1',
+                            'some_int': 1,
+                            'some_float': 1.1,
+                            'some_string': 'some_key4'
+                        },
+                        {
+                            'primary_partition_key': 'third_key',
+                            'range_key': 'range2',
+                            'some_int': 2,
+                            'some_float': 2.2,
+                            'some_string': 'some_key4'
+                        }
+                    ]
+            },
+            response
+        )
+
+        response = t.query(
+            index="string_n_float_index",
+            max_results=2,
+            offset_last_key=response["LastEvaluatedKey"],
+            some_string="some_key4",
+        )
+        response.pop("ResponseMetadata")
+        self.assertEqual(
+            {
+                "Count": 1,
+                "ScannedCount": mock.ANY,
+                "Items":
+                    [
+                        {
+                            'primary_partition_key': 'third_key',
+                            'range_key': 'range3',
+                            'some_int': 3,
+                            'some_float': 3.3,
+                            'some_string': 'some_key4'
+                        }
+                    ]
+            },
+            response
+        )
+
     def test_query_range_condition(self):
         from dynamo_db_resource import Table
         from dynamo_db_resource.conditions import BeginsWith
@@ -1865,7 +1951,7 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         self.assertEqual(
             {
                 "Count": 1,
-                "ScannedCount": 14,
+                "ScannedCount": mock.ANY,
                 "Items":
                     [
                         {
@@ -1894,7 +1980,7 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         self.assertEqual(
             {
                 "Count": 3,
-                "ScannedCount": 14,
+                "ScannedCount": mock.ANY,
                 "LastEvaluatedKey": "2020-01-01 14:00",
                 "Items":
                     [
@@ -1935,7 +2021,7 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         self.assertEqual(
             {
                 "Count": 3,
-                "ScannedCount": 14,
+                "ScannedCount": mock.ANY,
                 "Items":
                     [
                         {
@@ -1971,7 +2057,7 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         self.assertEqual(
             {
                 "Count": 2,
-                "ScannedCount": 14,
+                "ScannedCount": mock.ANY,
                 "Items":
                     [
                         {
