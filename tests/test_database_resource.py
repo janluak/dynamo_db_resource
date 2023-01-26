@@ -1,4 +1,5 @@
 from unittest import TestCase
+from pytest import raises
 from os import environ as os_environ
 from pathlib import Path
 from os import chdir, getcwd
@@ -37,17 +38,20 @@ class TestDynamoDBResource(TestCase):
         from dynamo_db_resource.table_existence import (
             create_dynamo_db_table_from_schema,
         )
-        with open(Path(Path(__file__).parent, f"test_data/tables/{self.table_name}.json")) as f:
-            create_dynamo_db_table_from_schema(
-                json.load(f)
-            )
+
+        with open(
+            Path(Path(__file__).parent, f"test_data/tables/{self.table_name}.json")
+        ) as f:
+            create_dynamo_db_table_from_schema(json.load(f))
 
         from dynamo_db_resource import Table
+
         self.table = Table(self.table_name)
         self.table.put(self.test_item, overwrite=True)
 
     def tearDown(self) -> None:
         from dynamo_db_resource.table_existence import delete_dynamo_db_table
+
         delete_dynamo_db_table(self.table_name, require_confirmation=False)
 
 
@@ -84,3 +88,66 @@ class TestSimpleDynamoDBResource(TestDynamoDBResource):
 class TestReusedDynamoDBResource(TestDynamoDBResource):
     # ToDo check re-usage of connection -> only one entry if accessing table twice
     pass
+
+
+class TestConfigurableDynamoDBResource(TestDynamoDBResource):
+    table_name = "TableForTests"
+    with open(Path(Path(__file__).parent, "test_data/items/test_item.json")) as f:
+        test_item = json.load(f)
+    test_item_primary = {"primary_partition_key": "some_identification_string"}
+
+    def test_stage(self):
+        from dynamo_db_resource.resource import (
+            DatabaseResourceController,
+        )
+
+        config = {"stage": "nonExistingStage"}
+
+        database_resource = DatabaseResourceController(config)
+
+        with raises(Exception) as fnf:
+            database_resource["TableForTests"].scan()
+        assert "Requested resource not found" in fnf.value.args[0]
+
+    def test_stack(self):
+        from dynamo_db_resource.resource import (
+            DatabaseResourceController,
+        )
+
+        config = {"stack": "some_stack"}
+
+        database_resource = DatabaseResourceController(config)
+
+        with raises(Exception) as fnf:
+            database_resource["TableForTests"].scan()
+        assert "Requested resource not found" in fnf.value.args[0]
+
+    def test_origin(self):
+        from dynamo_db_resource.resource import (
+            DatabaseResourceController,
+        )
+
+        del os_environ["DYNAMO_DB_RESOURCE_SCHEMA_ORIGIN"]
+
+        config = {"origin": "file"}
+
+        database_resource = DatabaseResourceController(config)
+
+        assert database_resource["TableForTests"].scan()
+
+        os_environ["DYNAMO_DB_RESOURCE_SCHEMA_ORIGIN"] = "file"
+
+    def test_origin_directory(self):
+        from dynamo_db_resource.resource import (
+            DatabaseResourceController,
+        )
+
+        del os_environ["DYNAMO_DB_RESOURCE_SCHEMA_DIRECTORY"]
+
+        config = {"directory": "test_data/tables/"}
+
+        database_resource = DatabaseResourceController(config)
+
+        assert database_resource["TableForTests"].scan()
+
+        os_environ["DYNAMO_DB_RESOURCE_SCHEMA_DIRECTORY"] = "test_data/tables/"

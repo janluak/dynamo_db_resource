@@ -4,7 +4,7 @@ __all__ = [
     "ConditionalCheckFailedException",
     "AttributeExistsException",
     "AttributeNotExistsException",
-    "ValidationError"
+    "ValidationError",
 ]
 
 

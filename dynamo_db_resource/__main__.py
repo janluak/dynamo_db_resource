@@ -26,6 +26,7 @@ def create_table_for_schema_in_directory(directory, tables=None):
 
 def create_infrastructure_for_schema_in_directory(directory, tables=None):
     from .table_existence import convert_schema_to_infrastructure_code
+
     schemas = [i for i in Path(directory).iterdir() if i.suffix == ".json"]
 
     data = dict()
@@ -54,7 +55,7 @@ if __name__ == "__main__":
     __parser.add_argument(
         "command",
         help="what shall be done",
-        choices=["create_table", "export_infrastructure"]
+        choices=["create_table", "export_infrastructure"],
     )
 
     __parser.add_argument(
@@ -83,11 +84,7 @@ if __name__ == "__main__":
     )
 
     __parser.add_argument(
-        "--tables",
-        "-t",
-        help="which tables to create",
-        nargs="*",
-        default=None
+        "--tables", "-t", help="which tables to create", nargs="*", default=None
     )
 
     __parser.add_argument(
@@ -102,24 +99,28 @@ if __name__ == "__main__":
         "-it",
         help="data format type of the infrastructure",
         choices=["json", "yml", "yaml"],
-        default="yml"
+        default="yml",
     )
 
     __vars = vars(__parser.parse_args())
     os_environ["ENV"] = __vars["environment"]
     if __vars["stage"]:
-        os_environ['DYNAMO_DB_RESOURCE_STAGE_NAME'] = __vars["stage"].upper()
+        os_environ["DYNAMO_DB_RESOURCE_STAGE_NAME"] = __vars["stage"].upper()
     if __vars["stack"]:
-        os_environ['DYNAMO_DB_RESOURCE_STACK_NAME'] = __vars["stack"].upper()
+        os_environ["DYNAMO_DB_RESOURCE_STACK_NAME"] = __vars["stack"].upper()
 
     if __vars["command"] == "create_table":
         os_environ["AWS_REGION"] = __vars["region"]
         create_table_for_schema_in_directory(__vars["directory"], None)
     if __vars["command"] == "export_infrastructure":
-        infrastructure = create_infrastructure_for_schema_in_directory(__vars["directory"], __vars["tables"])
+        infrastructure = create_infrastructure_for_schema_in_directory(
+            __vars["directory"], __vars["tables"]
+        )
         if __vars["infrastructure_export_type"] != "json":
             from yaml import safe_dump
+
             print(safe_dump(infrastructure))
         else:
             from json import dumps
+
             print(dumps(infrastructure))

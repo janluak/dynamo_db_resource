@@ -32,18 +32,21 @@ def set_stage_os_environ():
 @mock_dynamodb2
 def test_stack_name_in_table_name(set_stack_os_environ):
     from dynamo_db_resource.dynamo_db_table import _cast_table_name
+
     assert _cast_table_name("TableName") == "TEST-someStack-TableName"
 
 
 @mock_dynamodb2
 def test_stage_name_in_table_name(set_stage_os_environ):
     from dynamo_db_resource.dynamo_db_table import _cast_table_name
+
     assert _cast_table_name("TableName") == "TEST-TableName"
 
 
 @mock_dynamodb2
 def test_no_additional_name_in_table_name():
     from dynamo_db_resource.dynamo_db_table import _cast_table_name
+
     assert _cast_table_name("TableName") == "TableName"
 
 
@@ -68,12 +71,15 @@ class TestDynamoDBBase(TestCase):
             create_dynamo_db_table_from_schema,
         )
 
-        with open(Path(Path(__file__).parent, f"test_data/tables/{self.table_name}.json")) as f:
+        with open(
+            Path(Path(__file__).parent, f"test_data/tables/{self.table_name}.json")
+        ) as f:
             self.raw_schema = json.load(f)
         create_dynamo_db_table_from_schema(self.raw_schema)
 
     def tearDown(self) -> None:
         from dynamo_db_resource.table_existence import delete_dynamo_db_table
+
         delete_dynamo_db_table(self.table_name, require_confirmation=False)
         chdir(self.actual_cwd)
 
@@ -273,21 +279,12 @@ class TestDynamoDBQueryWithUpdateDictionaries(TestDynamoDBQuery):
         self.assertEqual(expected_expression_name_mapping, calculated_name_mapping)
 
     def test_add_set_with_item(self):
-        expected_expression = (
-            "add #AA.#AB :aa"
-        )
-        expected_expression_name_mapping = {
-            "#AA": "parent1",
-            "#AB": "child1"
-        }
+        expected_expression = "add #AA.#AB :aa"
+        expected_expression_name_mapping = {"#AA": "parent1", "#AB": "child1"}
 
-        update_data = {
-            "parent1": {"child1": {"2", "3"}}
-        }
+        update_data = {"parent1": {"child1": {"2", "3"}}}
 
-        expected_update_values = {
-            ":aa": {"2", "3"}
-        }
+        expected_update_values = {":aa": {"2", "3"}}
 
         from dynamo_db_resource import Table
 
@@ -304,19 +301,12 @@ class TestDynamoDBQueryWithUpdateDictionaries(TestDynamoDBQuery):
         self.assertEqual(expected_expression_name_mapping, calculated_name_mapping)
 
     def test_remove_from_set(self):
-        expected_expression = (
-            "delete #AA.#AB :aa"
-        )
-        expected_expression_name_mapping = {
-            "#AA": "parent1",
-            "#AB": "child1"
-        }
+        expected_expression = "delete #AA.#AB :aa"
+        expected_expression_name_mapping = {"#AA": "parent1", "#AB": "child1"}
 
         path_to_attribute = [["parent1", "child1"]]
 
-        expected_update_values = {
-            ":aa": {"2", "3"}
-        }
+        expected_update_values = {":aa": {"2", "3"}}
 
         from dynamo_db_resource import Table
 
@@ -326,7 +316,9 @@ class TestDynamoDBQueryWithUpdateDictionaries(TestDynamoDBQuery):
             calculated_expression,
             calculated_values,
             calculated_name_mapping,
-        ) = t._create_remove_expression(path_to_attribute, set_items_if_set=[{"2", "3"}])
+        ) = t._create_remove_expression(
+            path_to_attribute, set_items_if_set=[{"2", "3"}]
+        )
         self.assertEqual(expected_expression, calculated_expression)
         self.assertEqual(expected_update_values, calculated_values)
         self.assertEqual(expected_expression_name_mapping, calculated_name_mapping)
@@ -476,31 +468,34 @@ class TestDynamoDBQueryDirectProvisionOfPath(TestDynamoDBQuery):
         expected_expression_name_mapping = {
             "#AA": "parent1",
             "#AB": "child1",
-            "#AC": "child2"
+            "#AC": "child2",
         }
 
         remove_paths = [["parent1", "child1"], ["parent1", "child2"]]
 
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
-        calculated_expression, _, calculated_name_mapping = t._create_remove_expression(remove_paths)
+        calculated_expression, _, calculated_name_mapping = t._create_remove_expression(
+            remove_paths
+        )
         self.assertEqual(expected_expression_name_mapping, calculated_name_mapping)
         self.assertEqual(expected_expression, calculated_expression)
 
     def test_remove_list_entry(self):
         expected_expression = "remove #AA.#AB[0]"
-        expected_expression_name_mapping = {
-            "#AA": "parent1",
-            "#AB": "child1"
-        }
+        expected_expression_name_mapping = {"#AA": "parent1", "#AB": "child1"}
 
         remove_path = [["parent1", "child1"]]
 
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
-        calculated_expression, _, calculated_name_mapping = t._create_remove_expression(remove_path, 0)
+        calculated_expression, _, calculated_name_mapping = t._create_remove_expression(
+            remove_path, 0
+        )
         self.assertEqual(expected_expression, calculated_expression)
         self.assertEqual(expected_expression_name_mapping, calculated_name_mapping)
 
@@ -540,7 +535,9 @@ class TestDynamoDBQueryConditions(TestDynamoDBQuery):
 
         paths = [["p1", "p2"]]
         name_map = {"#AA": "p1", "#AB": "p2"}
-        condition, att_key_map, att_val_map = t._build_conditions(paths, False, name_map)
+        condition, att_key_map, att_val_map = t._build_conditions(
+            paths, False, name_map
+        )
 
         self.assertEqual("attribute_exists(#AA.#AB)", condition)
         self.assertEqual(dict(), att_key_map)
@@ -553,7 +550,9 @@ class TestDynamoDBQueryConditions(TestDynamoDBQuery):
 
         paths = [["p1", "p2"], ["p1", "p3"]]
         name_map = {"#AA": "p1", "#AB": "p2", "#AC": "p3"}
-        condition, att_key_map, att_val_map = t._build_conditions(paths, False, name_map)
+        condition, att_key_map, att_val_map = t._build_conditions(
+            paths, False, name_map
+        )
 
         self.assertEqual(
             "attribute_exists(#AA.#AB) and attribute_exists(#AA.#AC)", condition
@@ -568,7 +567,9 @@ class TestDynamoDBQueryConditions(TestDynamoDBQuery):
 
         paths = [["p1", "p2"]]
         name_map = {"#AA": "p1", "#AB": "p2"}
-        condition, att_key_map, att_val_map = t._build_conditions(False, paths, name_map)
+        condition, att_key_map, att_val_map = t._build_conditions(
+            False, paths, name_map
+        )
 
         self.assertEqual("attribute_not_exists(#AA.#AB)", condition)
         self.assertEqual(dict(), att_key_map)
@@ -583,7 +584,9 @@ class TestDynamoDBQueryConditions(TestDynamoDBQuery):
         paths = [["p1", "p2"]]
         name_map = {"#AA": "p1", "#AB": "p2"}
         user_condition = Attr("some_attribute").eq("some_value")
-        condition, att_key_map, att_val_map = t._build_conditions(False, paths, name_map, user_condition)
+        condition, att_key_map, att_val_map = t._build_conditions(
+            False, paths, name_map, user_condition
+        )
 
         self.assertEqual("attribute_not_exists(#AA.#AB) and #n0 = :v0", condition)
         self.assertEqual({"#n0": "some_attribute"}, att_key_map)
@@ -593,30 +596,52 @@ class TestDynamoDBQueryConditions(TestDynamoDBQuery):
 class TestDynamoDB(TestDynamoDBBase):
     def test_cast_primary_key(self):
         from dynamo_db_resource import Table
+
         t = Table("TableForTests")
 
         self.assertEqual({"primary_partition_key": "pk"}, t._cast_primary_keys("pk"))
-        self.assertEqual({"primary_partition_key": "pk"}, t._cast_primary_keys({"primary_partition_key": "pk"}))
         self.assertEqual(
-            [{"primary_partition_key": "pk1"}, {"primary_partition_key": "pk2"}],
-            t._cast_primary_keys(["pk1", "pk2"], batch=True)
+            {"primary_partition_key": "pk"},
+            t._cast_primary_keys({"primary_partition_key": "pk"}),
         )
         self.assertEqual(
             [{"primary_partition_key": "pk1"}, {"primary_partition_key": "pk2"}],
-            t._cast_primary_keys([{"primary_partition_key": "pk1"}, {"primary_partition_key": "pk2"}], batch=True)
+            t._cast_primary_keys(["pk1", "pk2"], batch=True),
+        )
+        self.assertEqual(
+            [{"primary_partition_key": "pk1"}, {"primary_partition_key": "pk2"}],
+            t._cast_primary_keys(
+                [{"primary_partition_key": "pk1"}, {"primary_partition_key": "pk2"}],
+                batch=True,
+            ),
         )
 
         tr = Table("TableWithRange")
         expected_primary = {"primary_partition_key": "pk", "range_key": "rk"}
         self.assertEqual(expected_primary, tr._cast_primary_keys("pk", "rk"))
-        self.assertEqual(expected_primary, tr._cast_primary_keys({"primary_partition_key": "pk", "range_key": "rk"}))
         self.assertEqual(
-            [{"primary_partition_key": "pk1", "range_key": "rk1"}, {"primary_partition_key": "pk1", "range_key": "rk2"}],
-            tr._cast_primary_keys([["pk1", "rk1"], ["pk1", "rk2"]], batch=True)
+            expected_primary,
+            tr._cast_primary_keys({"primary_partition_key": "pk", "range_key": "rk"}),
         )
         self.assertEqual(
-            [{"primary_partition_key": "pk1", "range_key": "rk1"}, {"primary_partition_key": "pk1", "range_key": "rk2"}],
-            tr._cast_primary_keys([{"primary_partition_key": "pk1", "range_key": "rk1"}, {"primary_partition_key": "pk1", "range_key": "rk2"}], batch=True)
+            [
+                {"primary_partition_key": "pk1", "range_key": "rk1"},
+                {"primary_partition_key": "pk1", "range_key": "rk2"},
+            ],
+            tr._cast_primary_keys([["pk1", "rk1"], ["pk1", "rk2"]], batch=True),
+        )
+        self.assertEqual(
+            [
+                {"primary_partition_key": "pk1", "range_key": "rk1"},
+                {"primary_partition_key": "pk1", "range_key": "rk2"},
+            ],
+            tr._cast_primary_keys(
+                [
+                    {"primary_partition_key": "pk1", "range_key": "rk1"},
+                    {"primary_partition_key": "pk1", "range_key": "rk2"},
+                ],
+                batch=True,
+            ),
         )
 
     def test_put(self):
@@ -670,48 +695,62 @@ class TestDynamoDB(TestDynamoDBBase):
 
     def test_projection_expression(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
         self.assertEqual(
             ("#AA,#AB", {"#AA": "some_value", "#AB": "primary_partition_key"}),
-            t._create_projection_expression("some_value")
+            t._create_projection_expression("some_value"),
         )
         self.assertEqual(
             ("#AA,#AB", {"#AA": "some_value", "#AB": "primary_partition_key"}),
-            t._create_projection_expression(["some_value"])
+            t._create_projection_expression(["some_value"]),
         )
         self.assertEqual(
-            ("#AA,#AB,#AC", {"#AA": "some_value", "#AB": "some_int", "#AC": "primary_partition_key"}),
-            t._create_projection_expression(["some_value", "some_int"])
+            (
+                "#AA,#AB,#AC",
+                {
+                    "#AA": "some_value",
+                    "#AB": "some_int",
+                    "#AC": "primary_partition_key",
+                },
+            ),
+            t._create_projection_expression(["some_value", "some_int"]),
         )
         self.assertEqual(
-            ("#AA.#AB,#AC", {'#AA': 'some_nested_dict', '#AB': 'KEY1', '#AC': 'primary_partition_key'}),
-            t._create_projection_expression([["some_nested_dict", "KEY1"]])
+            (
+                "#AA.#AB,#AC",
+                {
+                    "#AA": "some_nested_dict",
+                    "#AB": "KEY1",
+                    "#AC": "primary_partition_key",
+                },
+            ),
+            t._create_projection_expression([["some_nested_dict", "KEY1"]]),
         )
         self.assertEqual(
             ("#AA.[0],#AB", {"#AA": "some_array", "#AB": "primary_partition_key"}),
-            t._create_projection_expression([["some_array", 0]])
+            t._create_projection_expression([["some_array", 0]]),
         )
 
     @skip("issue in moto: ProjectionExpression not working on get_item (#4370)")
     def test_get_specified_attributes(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
         response = t.get(
-            attributes_to_get=["some_string", ["some_nested_dict", "KEY1", "subKEY1"], ["some_array", 0]],
-            **test_item_primary
+            attributes_to_get=[
+                "some_string",
+                ["some_nested_dict", "KEY1", "subKEY1"],
+                ["some_array", 0],
+            ],
+            **test_item_primary,
         )
         self.assertEqual(len(response), 3)
 
-        self.assertEqual(
-            1,
-            response["some_string"]
-        ),
-        self.assertNotIn(
-            "some_dict",
-            response
-        )
+        self.assertEqual(1, response["some_string"]),
+        self.assertNotIn("some_dict", response)
 
     def test_put_item_missing_keys(self):
         item = test_item_primary.copy()
@@ -847,7 +886,9 @@ class TestDynamoDB(TestDynamoDBBase):
             FNF.exception.args[0],
         )
 
-    def test_update_attribute_non_exiting_item_but_create_it_with_missing_attributes(self):
+    def test_update_attribute_non_exiting_item_but_create_it_with_missing_attributes(
+        self,
+    ):
         updated_attribute = {"some_float": 249235.93}
         from dynamo_db_resource import Table
         from dynamo_db_resource.exceptions import ValidationError
@@ -870,7 +911,9 @@ class TestDynamoDB(TestDynamoDBBase):
             TE.exception.args[0],
         )
 
-    def test_update_nested_attribute_non_exiting_item_but_try_create_it_with_missing_attributes(self):
+    def test_update_nested_attribute_non_exiting_item_but_try_create_it_with_missing_attributes(
+        self,
+    ):
         updated_attribute = {
             "some_nested_dict": {"KEY1": {"subKEY1": "updated_string"}}
         }
@@ -906,7 +949,8 @@ class TestDynamoDB(TestDynamoDBBase):
         t.update_attribute(updated_attribute, **test_item_primary)
 
         self.assertEqual(
-            updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+            updated_attribute["some_float"],
+            t.get(**test_item_primary)["some_float"],
         )
 
         t.delete(**test_item_primary)
@@ -919,17 +963,18 @@ class TestDynamoDB(TestDynamoDBBase):
 
         t.put(test_item)
 
-        response = t.update_attribute(updated_attribute, returns=UpdateReturns.ALL_NEW, **test_item_primary)
+        response = t.update_attribute(
+            updated_attribute, returns=UpdateReturns.ALL_NEW, **test_item_primary
+        )
 
         verification_item = deepcopy(test_item)
         verification_item.update(updated_attribute)
 
-        self.assertEqual(
-            verification_item, response
-        )
+        self.assertEqual(verification_item, response)
 
         self.assertEqual(
-            updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+            updated_attribute["some_float"],
+            t.get(**test_item_primary)["some_float"],
         )
 
         t.delete(**test_item_primary)
@@ -942,14 +987,15 @@ class TestDynamoDB(TestDynamoDBBase):
 
         t.put(test_item)
 
-        response = t.update_attribute(updated_attribute, returns=UpdateReturns.UPDATED_NEW, **test_item_primary)
-
-        self.assertEqual(
-            {"some_float": 249235.93}, response
+        response = t.update_attribute(
+            updated_attribute, returns=UpdateReturns.UPDATED_NEW, **test_item_primary
         )
 
+        self.assertEqual({"some_float": 249235.93}, response)
+
         self.assertEqual(
-            updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+            updated_attribute["some_float"],
+            t.get(**test_item_primary)["some_float"],
         )
 
         t.delete(**test_item_primary)
@@ -962,7 +1008,9 @@ class TestDynamoDB(TestDynamoDBBase):
 
         t.put(test_item)
 
-        response = t.update_attribute(updated_attribute, returns=UpdateReturns.UPDATED_NEW, **test_item_primary)
+        response = t.update_attribute(
+            updated_attribute, returns=UpdateReturns.UPDATED_NEW, **test_item_primary
+        )
 
         self.assertEqual(
             {
@@ -970,11 +1018,11 @@ class TestDynamoDB(TestDynamoDBBase):
                     "KEY1": {
                         "subKEY1": "subVALUE1",
                         "subKEY2": 342.98,
-                        "subKEY3": ["first_string"]
+                        "subKEY3": ["first_string"],
                     }
                 }
             },
-            response
+            response,
         )
 
         self.assertEqual(
@@ -992,14 +1040,18 @@ class TestDynamoDB(TestDynamoDBBase):
 
         t.put(test_item)
 
-        response = t.update_attribute(updated_attribute, set_new_attribute_if_not_existent=True, returns=UpdateReturns.UPDATED_NEW, **test_item_primary)
-
-        self.assertEqual(
-            {"some_string_set": {"abc"}}, response
+        response = t.update_attribute(
+            updated_attribute,
+            set_new_attribute_if_not_existent=True,
+            returns=UpdateReturns.UPDATED_NEW,
+            **test_item_primary,
         )
 
+        self.assertEqual({"some_string_set": {"abc"}}, response)
+
         self.assertEqual(
-            updated_attribute["some_string_set"], t.get(**test_item_primary)["some_string_set"],
+            updated_attribute["some_string_set"],
+            t.get(**test_item_primary)["some_string_set"],
         )
 
         t.delete(**test_item_primary)
@@ -1012,14 +1064,15 @@ class TestDynamoDB(TestDynamoDBBase):
 
         t.put(test_item)
 
-        response = t.update_attribute(updated_attribute, returns=UpdateReturns.UPDATED_OLD, **test_item_primary)
-
-        self.assertEqual(
-            {"some_float": test_item["some_float"]}, response
+        response = t.update_attribute(
+            updated_attribute, returns=UpdateReturns.UPDATED_OLD, **test_item_primary
         )
 
+        self.assertEqual({"some_float": test_item["some_float"]}, response)
+
         self.assertEqual(
-            updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+            updated_attribute["some_float"],
+            t.get(**test_item_primary)["some_float"],
         )
 
         t.delete(**test_item_primary)
@@ -1032,14 +1085,15 @@ class TestDynamoDB(TestDynamoDBBase):
 
         t.put(test_item)
 
-        response = t.update_attribute(updated_attribute, returns=UpdateReturns.ALL_OLD, **test_item_primary)
-
-        self.assertEqual(
-            test_item, response
+        response = t.update_attribute(
+            updated_attribute, returns=UpdateReturns.ALL_OLD, **test_item_primary
         )
 
+        self.assertEqual(test_item, response)
+
         self.assertEqual(
-            updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+            updated_attribute["some_float"],
+            t.get(**test_item_primary)["some_float"],
         )
 
         t.delete(**test_item_primary)
@@ -1106,9 +1160,8 @@ class TestDynamoDB(TestDynamoDBBase):
 
         self.assertEqual(
             updated_attribute["some_nested_dict"]["KEY1"]["subKEY4"]["sub4"][0],
-            response["some_nested_dict"]["KEY1"]["subKEY4"]["sub4"][0]
+            response["some_nested_dict"]["KEY1"]["subKEY4"]["sub4"][0],
         )
-
 
         self.assertEqual(
             updated_attribute["some_nested_dict"]["KEY1"]["subKEY4"]["sub4"][0],
@@ -1119,26 +1172,34 @@ class TestDynamoDB(TestDynamoDBBase):
 
     def test_update_integer_drift(self):
         from dynamo_db_resource import Table, UpdateReturns
+
         t = Table(self.table_name)
         t.put(test_item)
 
-        new_value = t.update_number_drift({"some_int": -1}, returns=UpdateReturns.UPDATED_NEW, **test_item_primary)
+        new_value = t.update_number_drift(
+            {"some_int": -1}, returns=UpdateReturns.UPDATED_NEW, **test_item_primary
+        )
         assert new_value["some_int"] == test_item["some_int"] - 1
         assert t.get(**test_item_primary)["some_int"] == test_item["some_int"] - 1
 
     def test_update_nested_float_drift(self):
         from dynamo_db_resource import Table, UpdateReturns
+
         t = Table(self.table_name)
         t.put(test_item)
         new_value = t.update_number_drift(
             {"some_nested_dict": {"KEY1": {"subKEY2": 3.5}}},
             returns=UpdateReturns.UPDATED_NEW,
-            **test_item_primary
+            **test_item_primary,
         )
-        assert new_value["some_nested_dict"]["KEY1"]["subKEY2"] == test_item["some_nested_dict"]["KEY1"]["subKEY2"] + 3.5
-        assert t.get(
-            **test_item_primary
-        )["some_nested_dict"]["KEY1"]["subKEY2"] == test_item["some_nested_dict"]["KEY1"]["subKEY2"] +3.5
+        assert (
+            new_value["some_nested_dict"]["KEY1"]["subKEY2"]
+            == test_item["some_nested_dict"]["KEY1"]["subKEY2"] + 3.5
+        )
+        assert (
+            t.get(**test_item_primary)["some_nested_dict"]["KEY1"]["subKEY2"]
+            == test_item["some_nested_dict"]["KEY1"]["subKEY2"] + 3.5
+        )
 
     def test_add_attribute(self):
         added_attribute = {
@@ -1185,10 +1246,13 @@ class TestDynamoDB(TestDynamoDBBase):
         )
 
         self.assertEqual(
-            "abc", t.get(**test_item_primary)["some_dict"]["key1"],
+            "abc",
+            t.get(**test_item_primary)["some_dict"]["key1"],
         )
 
-    @skip("issue in moto: item gets created though condition fails (#3729); working on docker test instance")
+    @skip(
+        "issue in moto: item gets created though condition fails (#3729); working on docker test instance"
+    )
     def test_add_attribute_on_non_existing_item_with_creation(self):
         added_attribute = deepcopy(test_item)
         added_attribute["some_dict"].update({"key3": {"free_key": "abc"}})
@@ -1203,19 +1267,17 @@ class TestDynamoDB(TestDynamoDBBase):
 
         added_attribute.update(**test_item_primary)
         item = t.get(**test_item_primary)
-        self.assertEqual(
-            added_attribute,
-            item
-        )
+        self.assertEqual(added_attribute, item)
 
         scan = t.scan()
-        self.assertEqual(
-            1,
-            len(scan["Items"])
-        )
+        self.assertEqual(1, len(scan["Items"]))
 
-    @skip("issue in moto: item gets created though condition fails (#3729); working on docker test instance")
-    def test_add_attribute_on_non_existing_item_with_creation_with_validation_error(self):
+    @skip(
+        "issue in moto: item gets created though condition fails (#3729); working on docker test instance"
+    )
+    def test_add_attribute_on_non_existing_item_with_creation_with_validation_error(
+        self,
+    ):
         added_attribute = {"some_dict": {"key1": "abc"}}
         from dynamo_db_resource import Table
 
@@ -1235,10 +1297,7 @@ class TestDynamoDB(TestDynamoDBBase):
             TE.exception.args[0],
         )
         scan = t.scan()
-        self.assertEqual(
-            list(),
-            scan["Items"]
-        )
+        self.assertEqual(list(), scan["Items"])
 
     def test_add_attribute_on_non_existing_item_without_creation(self):
         added_attribute = {"some_dict": {"key1": "abc"}}
@@ -1247,9 +1306,7 @@ class TestDynamoDB(TestDynamoDBBase):
         t = Table(self.table_name)
 
         with self.assertRaises(FileNotFoundError) as FNF:
-            t.add_new_attribute(
-                added_attribute, **test_item_primary
-            )
+            t.add_new_attribute(added_attribute, **test_item_primary)
 
         self.assertEqual(
             {
@@ -1260,10 +1317,7 @@ class TestDynamoDB(TestDynamoDBBase):
             FNF.exception.args[0],
         )
         scan = t.scan()
-        self.assertEqual(
-            list(),
-            scan["Items"]
-        )
+        self.assertEqual(list(), scan["Items"])
 
     def test_append_item(self):
         from dynamo_db_resource import Table
@@ -1282,7 +1336,9 @@ class TestDynamoDB(TestDynamoDBBase):
 
         self.assertEqual(changed_item, result)
 
-    @skip("issue in moto: item gets created though condition fails (#3729); working on docker test instance")
+    @skip(
+        "issue in moto: item gets created though condition fails (#3729); working on docker test instance"
+    )
     def test_append_with_attribute_in_non_existing_path(self):
         updated_attribute = {
             "some_nested_dict": {
@@ -1323,10 +1379,7 @@ class TestDynamoDB(TestDynamoDBBase):
         t.put(test_item)
 
         t.add_new_attribute({"some_string_set": {"2", "3"}}, **test_item_primary)
-        self.assertEqual(
-            {"2", "3"},
-            t.get(**test_item_primary)["some_string_set"]
-        )
+        self.assertEqual({"2", "3"}, t.get(**test_item_primary)["some_string_set"])
 
     def test_adding_to_set(self):
         from dynamo_db_resource import Table
@@ -1335,17 +1388,10 @@ class TestDynamoDB(TestDynamoDBBase):
         t.put(test_item)
 
         t.add_new_attribute({"some_string_set": {"2", "3"}}, **test_item_primary)
+        self.assertEqual({"2", "3"}, t.get(**test_item_primary)["some_string_set"])
+        t.update_add_set({"some_string_set": {"3", "4", "5"}}, **test_item_primary)
         self.assertEqual(
-            {"2", "3"},
-            t.get(**test_item_primary)["some_string_set"]
-        )
-        t.update_add_set(
-            {"some_string_set": {"3", "4", "5"}},
-            **test_item_primary
-        )
-        self.assertEqual(
-            {"2", "3", "4", "5"},
-            t.get(**test_item_primary)["some_string_set"]
+            {"2", "3", "4", "5"}, t.get(**test_item_primary)["some_string_set"]
         )
 
     def test_removing_items_from_set(self):
@@ -1354,15 +1400,15 @@ class TestDynamoDB(TestDynamoDBBase):
         t = Table(self.table_name)
         t.put(test_item)
 
-        t.add_new_attribute({"some_string_set": {"2", "3", "4", "5"}}, **test_item_primary)
-        t.remove_from_set(["some_string_set"], {"3", "4"}, **test_item_primary)
-        self.assertEqual(
-            {"2", "5"},
-            t.get(**test_item_primary)["some_string_set"]
+        t.add_new_attribute(
+            {"some_string_set": {"2", "3", "4", "5"}}, **test_item_primary
         )
+        t.remove_from_set(["some_string_set"], {"3", "4"}, **test_item_primary)
+        self.assertEqual({"2", "5"}, t.get(**test_item_primary)["some_string_set"])
 
     def test_remove_attribute(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
         t.put(test_item)
 
@@ -1374,26 +1420,33 @@ class TestDynamoDB(TestDynamoDBBase):
 
     def test_remove_attribute_with_return_deleted(self):
         from dynamo_db_resource import Table, UpdateReturns
+
         t = Table(self.table_name)
         t.put(test_item)
 
         path_to_delete = ["some_dict", "key1"]
-        response = t.remove_attribute(path_to_delete, returns=UpdateReturns.DELETED, **test_item_primary)
+        response = t.remove_attribute(
+            path_to_delete, returns=UpdateReturns.DELETED, **test_item_primary
+        )
         self.assertEqual("value1", response)
 
     def test_remove_attribute_with_return_all_old(self):
         from dynamo_db_resource import Table, UpdateReturns
+
         t = Table(self.table_name)
         t.put(test_item)
 
         path_to_delete = ["some_dict", "key1"]
-        response = t.remove_attribute(path_to_delete, returns=UpdateReturns.ALL_OLD, **test_item_primary)
+        response = t.remove_attribute(
+            path_to_delete, returns=UpdateReturns.ALL_OLD, **test_item_primary
+        )
         self.assertEqual(test_item, response)
         item = t.get(**test_item_primary)
         self.assertNotIn("key1", item["some_dict"])
 
     def test_remove_non_existing_attribute(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
         t.put(test_item)
 
@@ -1406,6 +1459,7 @@ class TestDynamoDB(TestDynamoDBBase):
 
     def test_remove_list_entry(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
         t.put(test_item)
 
@@ -1419,6 +1473,7 @@ class TestDynamoDB(TestDynamoDBBase):
 
     def test_remove_list_entry_return_deleted(self):
         from dynamo_db_resource import Table, UpdateReturns
+
         t = Table(self.table_name)
         t.put(test_item)
 
@@ -1429,18 +1484,10 @@ class TestDynamoDB(TestDynamoDBBase):
             path_to_delete,
             item_no_to_delete,
             returns=UpdateReturns.DELETED,
-            **test_item_primary
+            **test_item_primary,
         )
 
-        self.assertEqual(
-            {
-                "KEY1": {
-                    "subKEY1": "subVALUE1",
-                    "subKEY2": 42.24
-                }
-            },
-            response
-        )
+        self.assertEqual({"KEY1": {"subKEY1": "subVALUE1", "subKEY2": 42.24}}, response)
 
         item = t.get(**test_item_primary)
         self.assertEqual(["simple_string", 13], item["some_array"])
@@ -1448,6 +1495,7 @@ class TestDynamoDB(TestDynamoDBBase):
     @skip("not implemented: check on item in lists exists")
     def test_remove_non_existing_list_entry(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
         t.put(test_item)
 
@@ -1455,11 +1503,14 @@ class TestDynamoDB(TestDynamoDBBase):
         item_no_to_delete = 5
 
         with self.assertRaises(IndexError):
-            t.remove_entry_in_list(path_to_delete, item_no_to_delete, **test_item_primary)
+            t.remove_entry_in_list(
+                path_to_delete, item_no_to_delete, **test_item_primary
+            )
 
     def test_remove_required_attribute(self):
         from dynamo_db_resource import Table
         from dynamo_db_resource.exceptions import ValidationError
+
         t = Table(self.table_name)
 
         path_to_delete = ["some_int"]
@@ -1482,7 +1533,8 @@ class TestDynamoDB(TestDynamoDBBase):
         )
 
         self.assertEqual(
-            updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+            updated_attribute["some_float"],
+            t.get(**test_item_primary)["some_float"],
         )
 
         updated_attribute = {"some_float": 34.15}
@@ -1493,7 +1545,8 @@ class TestDynamoDB(TestDynamoDBBase):
         )
 
         self.assertEqual(
-            updated_attribute["some_float"], t.get(**test_item_primary)["some_float"],
+            updated_attribute["some_float"],
+            t.get(**test_item_primary)["some_float"],
         )
 
     def test_update_condition_exception(self):
@@ -1511,10 +1564,7 @@ class TestDynamoDB(TestDynamoDBBase):
                 condition=Attr("some_int").eq(0),
                 **test_item_primary,
             )
-        self.assertEqual(
-            test_item,
-            t.get(**test_item_primary)
-        )
+        self.assertEqual(test_item, t.get(**test_item_primary))
 
     def test_scan_and_truncate(self):
         from dynamo_db_resource import Table
@@ -1554,16 +1604,16 @@ class TestDynamoDB(TestDynamoDBBase):
             return_as_dict_of_primary_keys=True,
         )
         self.assertEqual(
-            {"some_identification_string": test_item, "second_identification_string": second_test_item},
-            response
+            {
+                "some_identification_string": test_item,
+                "second_identification_string": second_test_item,
+            },
+            response,
         )
         list_response = t.batch_get(
             ["some_identification_string", "second_identification_string"],
         )
-        self.assertEqual(
-            list(response.values()),
-            list_response
-        )
+        self.assertEqual(list(response.values()), list_response)
 
 
 class TestDynamoDBRangeNIndex(TestDynamoDBBase):
@@ -1588,125 +1638,131 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
         index_name = "some_string_index"
         expected_index = {"some_string": "some_value"}
         self.assertEqual(expected_index, tr._cast_index_keys(index_name, "some_value"))
-        self.assertEqual(expected_index, tr._cast_index_keys(index_name, {"some_string": "some_value"}))
+        self.assertEqual(
+            expected_index,
+            tr._cast_index_keys(index_name, {"some_string": "some_value"}),
+        )
 
         index_name = "string_n_int_index"
         expected_index = {"some_string": "some_value", "some_int": 2}
-        self.assertEqual(expected_index, tr._cast_index_keys(index_name, "some_value", 2))
-        self.assertEqual(expected_index, tr._cast_index_keys(
-            index_name, {"some_string": "some_value", "some_int": 2})
-                         )
+        self.assertEqual(
+            expected_index, tr._cast_index_keys(index_name, "some_value", 2)
+        )
+        self.assertEqual(
+            expected_index,
+            tr._cast_index_keys(
+                index_name, {"some_string": "some_value", "some_int": 2}
+            ),
+        )
 
     def test_raw_query(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
-        response = t.query(
-            primary_partition_key="first_key"
-        )
+        response = t.query(primary_partition_key="first_key")
         self.assertEqual(response["Count"], 13)
 
     def test_get_item_from_index(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
         response = t.index_get(
             index="some_string_index",
             return_as_dict_of_primary_keys=True,
-            **{"some_string": "some_key1"}
+            **{"some_string": "some_key1"},
         )
         self.assertEqual(
             "first_key",
-            response[("first_key", "2020-01-01 12:01")]["primary_partition_key"]
+            response[("first_key", "2020-01-01 12:01")]["primary_partition_key"],
         ),
         self.assertEqual(
             t.get(primary_partition_key="first_key", range_key="2020-01-01 12:01"),
-            response[("first_key", "2020-01-01 12:01")]
+            response[("first_key", "2020-01-01 12:01")],
         )
         list_response = t.index_get(
-            index="some_string_index",
-            **{"some_string": "some_key1"}
+            index="some_string_index", **{"some_string": "some_key1"}
         )
-        self.assertEqual(
-            list(response.values()),
-            list_response
-        )
+        self.assertEqual(list(response.values()), list_response)
 
     def test_get_item_parts_from_index(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
         response = t.index_get(
             index="some_string_index",
             attributes_to_get=["some_int"],
-            **{"some_string": "some_key1"}
+            **{"some_string": "some_key1"},
         )
         self.assertEqual(len(response[0]), 3)
 
-        self.assertEqual(
-            1,
-            response[0]["some_int"]
-        ),
-        self.assertNotIn(
-            "some_string",
-            response[0]
-        )
+        self.assertEqual(1, response[0]["some_int"]),
+        self.assertNotIn("some_string", response[0])
 
     def test_get_item_from_composite_index(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
         response = t.index_get(
             index="string_n_int_index",
             return_as_dict_of_primary_keys=True,
-            **{"some_string": "some_key2", "some_int": 2}
+            **{"some_string": "some_key2", "some_int": 2},
         )
         self.assertEqual(
             "first_key",
-            response[("first_key", "2020-01-01 12:02")]["primary_partition_key"]
+            response[("first_key", "2020-01-01 12:02")]["primary_partition_key"],
         ),
         self.assertEqual(
             t.get(primary_partition_key="first_key", range_key="2020-01-01 12:02"),
-            response[("first_key", "2020-01-01 12:02")]
+            response[("first_key", "2020-01-01 12:02")],
         )
 
     def test_get_non_existent_item_from_index(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
         with self.assertRaises(FileNotFoundError):
-            t.index_get(index="some_string_index", **{"some_string": "not existing key"})
+            t.index_get(
+                index="some_string_index", **{"some_string": "not existing key"}
+            )
 
     def test_batch_get_with_range_key(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
-        response = t.batch_get([
-            ["first_key", "2020-01-01 12:01"],
-            {"primary_partition_key": "second_key", "range_key": "range1"}
-        ],
-            return_as_dict_of_primary_keys=True
+        response = t.batch_get(
+            [
+                ["first_key", "2020-01-01 12:01"],
+                {"primary_partition_key": "second_key", "range_key": "range1"},
+            ],
+            return_as_dict_of_primary_keys=True,
         )
         self.assertEqual(
             {
-                ('first_key', '2020-01-01 12:01'): {
-                    'primary_partition_key': 'first_key',
-                    'range_key': '2020-01-01 12:01',
-                    'some_int': 1,
-                    'some_string': 'some_key1'
+                ("first_key", "2020-01-01 12:01"): {
+                    "primary_partition_key": "first_key",
+                    "range_key": "2020-01-01 12:01",
+                    "some_int": 1,
+                    "some_string": "some_key1",
                 },
-                ('second_key', 'range1'): {
-                    'primary_partition_key': 'second_key',
-                    'range_key': 'range1',
-                    'some_int': 1,
-                    'some_string': 'some_key3'
-                }
-             },
-            response
+                ("second_key", "range1"): {
+                    "primary_partition_key": "second_key",
+                    "range_key": "range1",
+                    "some_int": 1,
+                    "some_string": "some_key3",
+                },
+            },
+            response,
         )
 
     def test_paginate_first(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
         response = t.query(max_results=3, primary_partition_key="first_key")
@@ -1716,39 +1772,39 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
                 "Count": 3,
                 "ScannedCount": mock.ANY,
                 "LastEvaluatedKey": "2020-01-01 12:03",
-                "Items":
-                    [
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-01-01 12:01",
-                            "some_int": 1,
-                            "some_string": "some_key1"
-                        },
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-01-01 12:02",
-                            "some_int": 2,
-                            "some_string": "some_key2"
-                        },
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-01-01 12:03",
-                            "some_int": 2,
-                            "some_string": "some_key2"
-                        }
-                    ]
+                "Items": [
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-01-01 12:01",
+                        "some_int": 1,
+                        "some_string": "some_key1",
+                    },
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-01-01 12:02",
+                        "some_int": 2,
+                        "some_string": "some_key2",
+                    },
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-01-01 12:03",
+                        "some_int": 2,
+                        "some_string": "some_key2",
+                    },
+                ],
             },
-            response
+            response,
         )
 
     def test_paginate_second(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
         response = t.query(
             max_results=3,
             offset_last_key="2020-01-01 12:03",
-            primary_partition_key="first_key"
+            primary_partition_key="first_key",
         )
         response.pop("ResponseMetadata")
         self.assertEqual(
@@ -1756,40 +1812,40 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
                 "Count": 3,
                 "ScannedCount": mock.ANY,
                 "LastEvaluatedKey": "2020-01-01 14:20",
-                "Items":
-                    [
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-01-01 13:00",
-                            "some_int": 2,
-                            "some_string": "some_key2"
-                        },
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-01-01 14:00",
-                            "some_int": 2,
-                            "some_string": "some_key2"
-                        },
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-01-01 14:20",
-                            "some_int": 2,
-                            "some_string": "some_key2"
-                        }
-                    ]
+                "Items": [
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-01-01 13:00",
+                        "some_int": 2,
+                        "some_string": "some_key2",
+                    },
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-01-01 14:00",
+                        "some_int": 2,
+                        "some_string": "some_key2",
+                    },
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-01-01 14:20",
+                        "some_int": 2,
+                        "some_string": "some_key2",
+                    },
+                ],
             },
-            response
+            response,
         )
 
     def test_paginate_specific_attributs(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
         response = t.query(
             attributes_to_get=["some_string"],
             max_results=3,
             offset_last_key="2020-01-01 12:03",
-            primary_partition_key="first_key"
+            primary_partition_key="first_key",
         )
         response.pop("ResponseMetadata")
         self.assertEqual(
@@ -1797,63 +1853,63 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
                 "Count": 3,
                 "ScannedCount": mock.ANY,
                 "LastEvaluatedKey": "2020-01-01 14:20",
-                "Items":
-                    [
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-01-01 13:00",
-                            "some_string": "some_key2"
-                        },
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-01-01 14:00",
-                            "some_string": "some_key2"
-                        },
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-01-01 14:20",
-                            "some_string": "some_key2"
-                        }
-                    ]
+                "Items": [
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-01-01 13:00",
+                        "some_string": "some_key2",
+                    },
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-01-01 14:00",
+                        "some_string": "some_key2",
+                    },
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-01-01 14:20",
+                        "some_string": "some_key2",
+                    },
+                ],
             },
-            response
+            response,
         )
 
     def test_paginate_last(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
         response = t.query(
             max_results=3,
             offset_last_key="2020-02-03 13:00",
-            primary_partition_key="first_key"
+            primary_partition_key="first_key",
         )
         response.pop("ResponseMetadata")
         self.assertEqual(
             {
                 "Count": 2,
                 "ScannedCount": mock.ANY,
-                "Items":
-                    [
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-02-04 13:00",
-                            "some_int": 2,
-                            "some_string": "some_key2"
-                        },
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2021-01-01 12:00",
-                            "some_int": 2,
-                            "some_string": "some_key2"
-                        }
-                    ]
+                "Items": [
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-02-04 13:00",
+                        "some_int": 2,
+                        "some_string": "some_key2",
+                    },
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2021-01-01 12:00",
+                        "some_int": 2,
+                        "some_string": "some_key2",
+                    },
+                ],
             },
-            response
+            response,
         )
 
     def test_query_on_index_with_single_offset_key(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
         with self.assertRaises(TypeError) as TE:
@@ -1861,7 +1917,7 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
                 index="string_n_int_index",
                 max_results=3,
                 some_string="some_key2",
-                offset_last_key=2
+                offset_last_key=2,
             )
         self.assertEqual(
             {
@@ -1874,6 +1930,7 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
 
     def test_query_on_index(self):
         from dynamo_db_resource import Table
+
         t = Table(self.table_name)
 
         response = t.query(
@@ -1890,27 +1947,26 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
                     "some_float": 2.2,
                     "primary_partition_key": "third_key",
                     "range_key": "range2",
-                    "some_string": "some_key4"
+                    "some_string": "some_key4",
                 },
-                "Items":
-                    [
-                        {
-                            'primary_partition_key': 'third_key',
-                            'range_key': 'range1',
-                            'some_int': 1,
-                            'some_float': 1.1,
-                            'some_string': 'some_key4'
-                        },
-                        {
-                            'primary_partition_key': 'third_key',
-                            'range_key': 'range2',
-                            'some_int': 2,
-                            'some_float': 2.2,
-                            'some_string': 'some_key4'
-                        }
-                    ]
+                "Items": [
+                    {
+                        "primary_partition_key": "third_key",
+                        "range_key": "range1",
+                        "some_int": 1,
+                        "some_float": 1.1,
+                        "some_string": "some_key4",
+                    },
+                    {
+                        "primary_partition_key": "third_key",
+                        "range_key": "range2",
+                        "some_int": 2,
+                        "some_float": 2.2,
+                        "some_string": "some_key4",
+                    },
+                ],
             },
-            response
+            response,
         )
 
         response = t.query(
@@ -1924,57 +1980,56 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
             {
                 "Count": 1,
                 "ScannedCount": mock.ANY,
-                "Items":
-                    [
-                        {
-                            'primary_partition_key': 'third_key',
-                            'range_key': 'range3',
-                            'some_int': 3,
-                            'some_float': 3.3,
-                            'some_string': 'some_key4'
-                        }
-                    ]
+                "Items": [
+                    {
+                        "primary_partition_key": "third_key",
+                        "range_key": "range3",
+                        "some_int": 3,
+                        "some_float": 3.3,
+                        "some_string": "some_key4",
+                    }
+                ],
             },
-            response
+            response,
         )
 
     def test_query_range_condition(self):
         from dynamo_db_resource import Table
         from dynamo_db_resource.conditions import BeginsWith
+
         t = Table(self.table_name)
 
         response = t.query(
-            range_condition=BeginsWith("2021"),
-            primary_partition_key="first_key"
+            range_condition=BeginsWith("2021"), primary_partition_key="first_key"
         )
         response.pop("ResponseMetadata")
         self.assertEqual(
             {
                 "Count": 1,
                 "ScannedCount": mock.ANY,
-                "Items":
-                    [
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2021-01-01 12:00",
-                            "some_int": 2,
-                            "some_string": "some_key2"
-                        }
-                    ]
+                "Items": [
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2021-01-01 12:00",
+                        "some_int": 2,
+                        "some_string": "some_key2",
+                    }
+                ],
             },
-            response
+            response,
         )
 
     def test_query_range_condition_page(self):
         from dynamo_db_resource import Table
         from dynamo_db_resource.conditions import BeginsWith
+
         t = Table(self.table_name)
 
         response = t.query(
             max_results=3,
             range_condition=BeginsWith("2020-01-01"),
             offset_last_key="2020-01-01 12:02",
-            primary_partition_key="first_key"
+            primary_partition_key="first_key",
         )
         response.pop("ResponseMetadata")
         self.assertEqual(
@@ -1982,99 +2037,96 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
                 "Count": 3,
                 "ScannedCount": mock.ANY,
                 "LastEvaluatedKey": "2020-01-01 14:00",
-                "Items":
-                    [
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-01-01 12:03",
-                            "some_int": 2,
-                            "some_string": "some_key2"
-                        },
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-01-01 13:00",
-                            "some_int": 2,
-                            "some_string": "some_key2"
-                        },
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-01-01 14:00",
-                            "some_int": 2,
-                            "some_string": "some_key2"
-                        }
-                    ]
+                "Items": [
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-01-01 12:03",
+                        "some_int": 2,
+                        "some_string": "some_key2",
+                    },
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-01-01 13:00",
+                        "some_int": 2,
+                        "some_string": "some_key2",
+                    },
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-01-01 14:00",
+                        "some_int": 2,
+                        "some_string": "some_key2",
+                    },
+                ],
             },
-            response
+            response,
         )
 
     def test_query_range_condition_with_attributes_to_get(self):
         from dynamo_db_resource import Table
         from dynamo_db_resource.conditions import GreaterThan, BeginsWith
+
         t = Table(self.table_name)
 
         response = t.query(
             range_condition=GreaterThan("2020-02-03 12:00"),
             attributes_to_get=["some_int"],
-            primary_partition_key="first_key"
+            primary_partition_key="first_key",
         )
         response.pop("ResponseMetadata")
         self.assertEqual(
             {
                 "Count": 3,
                 "ScannedCount": mock.ANY,
-                "Items":
-                    [
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-02-03 13:00",
-                            "some_int": 2,
-                        },
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-02-04 13:00",
-                            "some_int": 2,
-                        },
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2021-01-01 12:00",
-                            "some_int": 2,
-                        }
-                    ]
+                "Items": [
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-02-03 13:00",
+                        "some_int": 2,
+                    },
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-02-04 13:00",
+                        "some_int": 2,
+                    },
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2021-01-01 12:00",
+                        "some_int": 2,
+                    },
+                ],
             },
-            response
+            response,
         )
 
     def test_query_range_condition_between(self):
         from dynamo_db_resource import Table
         from dynamo_db_resource.conditions import Between
+
         t = Table(self.table_name)
 
         response = t.query(
             range_condition=Between("2020-02-03 12:05", "2020-02-04 13:00"),
-            primary_partition_key="first_key"
+            primary_partition_key="first_key",
         )
         response.pop("ResponseMetadata")
         self.assertEqual(
             {
                 "Count": 2,
                 "ScannedCount": mock.ANY,
-                "Items":
-                    [
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-02-03 13:00",
-                            "some_int": 2,
-                            "some_string": "some_key2"
-                        },
-                        {
-                            "primary_partition_key": "first_key",
-                            "range_key": "2020-02-04 13:00",
-                            "some_int": 2,
-                            "some_string": "some_key2"
-                        }
-                    ]
+                "Items": [
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-02-03 13:00",
+                        "some_int": 2,
+                        "some_string": "some_key2",
+                    },
+                    {
+                        "primary_partition_key": "first_key",
+                        "range_key": "2020-02-04 13:00",
+                        "some_int": 2,
+                        "some_string": "some_key2",
+                    },
+                ],
             },
-            response
+            response,
         )
-
-

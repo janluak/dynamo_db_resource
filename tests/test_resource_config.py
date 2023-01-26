@@ -18,10 +18,10 @@ def test_resource_config_unittest(os_env):
     config = create_resource_config("local", True)
 
     assert config == {
-        'aws_access_key_id': 'dummy',
-        'aws_secret_access_key': 'dummy',
-        'endpoint_url': 'http://localhost:8000',
-        'region_name': 'dummy'
+        "aws_access_key_id": "dummy",
+        "aws_secret_access_key": "dummy",
+        "endpoint_url": "http://localhost:8000",
+        "region_name": "dummy",
     }
 
 
@@ -31,10 +31,10 @@ def test_resource_config_aws_sam(os_env):
     config = create_resource_config("local", aws_sam=True)
 
     assert config == {
-        'aws_access_key_id': 'dummy',
-        'aws_secret_access_key': 'dummy',
-        'endpoint_url': 'http://docker.for.mac.localhost:8000',
-        'region_name': 'dummy'
+        "aws_access_key_id": "dummy",
+        "aws_secret_access_key": "dummy",
+        "endpoint_url": "http://docker.for.mac.localhost:8000",
+        "region_name": "dummy",
     }
 
 
@@ -43,7 +43,4 @@ def test_resource_config_cloud(os_env):
 
     config = create_resource_config(os_environ["AWS_REGION"])
 
-    assert config == {
-        'region_name': os_environ["AWS_REGION"]
-    }
-
+    assert config == {"region_name": os_environ["AWS_REGION"]}

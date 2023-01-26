@@ -1,7 +1,9 @@
 __all__ = ["create_resource_config"]
 
 
-def create_resource_config(region: str = "eu-central-1", unittest: bool = False, aws_sam: bool = False) -> dict:
+def create_resource_config(
+    region: str = "eu-central-1", unittest: bool = False, aws_sam: bool = False
+) -> dict:
     if region == "local" and not unittest and not aws_sam:
         raise TypeError("if local=True either unittest or aws_sam must be true")
     if unittest and aws_sam:
@@ -23,4 +25,3 @@ def create_resource_config(region: str = "eu-central-1", unittest: bool = False,
         "cloud": {"region_name": region},
     }
     return __switch_db_resource_config["cloud" if region != "local" else region]
-

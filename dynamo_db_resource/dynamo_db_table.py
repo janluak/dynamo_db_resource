@@ -2,7 +2,7 @@ from aws_schema import SchemaValidator
 from aws_schema.nested_dict_helper import find_path_values_in_dict
 from ._number_types_in_objects import (
     object_with_float_to_decimal,
-    object_with_decimal_to_float
+    object_with_decimal_to_float,
 )
 from ._schema import DynamoDBValidator
 from .exceptions import (
@@ -10,18 +10,30 @@ from .exceptions import (
     AttributeExistsException,
     AttributeNotExistsException,
     ValidationError,
-    CustomExceptionRaiser
+    CustomExceptionRaiser,
 )
 from inspect import stack
 from os import environ as os_environ
 from string import ascii_lowercase
 from boto3 import resource
-from boto3.dynamodb.conditions import Key, And, ConditionExpressionBuilder, ConditionBase
+from boto3.dynamodb.conditions import (
+    Key,
+    And,
+    ConditionExpressionBuilder,
+    ConditionBase,
+)
 from botocore.exceptions import ClientError
 from copy import deepcopy
 from typing import Iterable, List
 
-_ddb_resource = resource("dynamodb", **{"region_name": os_environ["AWS_REGION"] if "AWS_REGION" in os_environ else "us-east-1"})
+_ddb_resource = resource(
+    "dynamodb",
+    **{
+        "region_name": os_environ["AWS_REGION"]
+        if "AWS_REGION" in os_environ
+        else "us-east-1"
+    },
+)
 
 __all__ = ["Table", "UpdateReturns", "SelectReturns"]
 
@@ -30,6 +42,7 @@ class UpdateReturns:
     """
     contains the options for possible return values if updating an item
     """
+
     NONE = "NONE"
     ALL_OLD = "ALL_OLD"
     UPDATED_OLD = "UPDATED_OLD"
@@ -40,8 +53,9 @@ class UpdateReturns:
 
 class SelectReturns:
     """
-    containts the options for query return values
+    contains the options for query return values
     """
+
     ALL_ATTRIBUTES = "ALL_ATTRIBUTES"
     ALL_PROJECTED_ATTRIBUTES = "ALL_PROJECTED_ATTRIBUTES"
     SPECIFIC_ATTRIBUTES = "SPECIFIC_ATTRIBUTES"
@@ -54,11 +68,15 @@ for c1 in ascii_lowercase:
         _value_update_chars.append(c1 + c2)
 
 
-def _cast_table_name(table_name: str) -> str:
+def _cast_table_name(table_name: str, config: dict = None) -> str:
     name_components = list()
-    if "DYNAMO_DB_RESOURCE_STAGE_NAME" in os_environ:
-        name_components.append(os_environ['DYNAMO_DB_RESOURCE_STAGE_NAME'])
-    if "DYNAMO_DB_RESOURCE_STACK_NAME" in os_environ:
+    if config and "stage" in config:
+        name_components.append(config["stage"])
+    elif "DYNAMO_DB_RESOURCE_STAGE_NAME" in os_environ:
+        name_components.append(os_environ["DYNAMO_DB_RESOURCE_STAGE_NAME"])
+    if config and "stack" in config:
+        name_components.append(config["stack"])
+    elif "DYNAMO_DB_RESOURCE_STACK_NAME" in os_environ:
         name_components.append(os_environ["DYNAMO_DB_RESOURCE_STACK_NAME"])
     name_components.append(table_name)
     return "-".join(name_components)
@@ -74,25 +92,35 @@ def _combine_and_conditions(conditions: list):
 
 
 class Table:
-    def __init__(self, table_name, special_resource_config: dict = False):
+    def __init__(
+        self, table_name, special_resource_config: dict = False, config: dict = None
+    ):
         self.__table_name = table_name
+        self._config = config if config else {}
         self.__custom_exception_raiser = CustomExceptionRaiser(self)
 
-        self.__schema_validator = SchemaValidator(
-            **{
-                os_environ["DYNAMO_DB_RESOURCE_SCHEMA_ORIGIN"].lower(): os_environ[
-                                                                            "DYNAMO_DB_RESOURCE_SCHEMA_DIRECTORY"]
-                                                                        + self.__table_name
-            },
-            custom_validator=DynamoDBValidator
+        origin = (
+            self._config["origin"].lower()
+            if "origin" in self._config
+            else os_environ["DYNAMO_DB_RESOURCE_SCHEMA_ORIGIN"].lower()
         )
+        directory = (
+            self._config["directory"]
+            if "directory" in self._config
+            else os_environ["DYNAMO_DB_RESOURCE_SCHEMA_DIRECTORY"]
+        )
+        directory += self.__table_name
+        self.__schema_validator = SchemaValidator(
+            **{origin: directory}, custom_validator=DynamoDBValidator
+        )
+
         if special_resource_config:
             self.__resource = resource("dynamodb", **special_resource_config)
             self.__resource_config = special_resource_config
         else:
             self.__resource = _ddb_resource
             self.__resource_config = {"region_name": os_environ["AWS_REGION"]}
-        self.__table_name = _cast_table_name(table_name)
+        self.__table_name = _cast_table_name(table_name, self._config)
         self.__table = self.__resource.Table(self.__table_name)
         self._cast_indexes()
 
@@ -102,7 +130,12 @@ class Table:
 
     @property
     def pk(self):
-        return tuple([i["AttributeName"] for i in self.__schema_validator.schema["$infrastructure"]["KeySchema"]])
+        return tuple(
+            [
+                i["AttributeName"]
+                for i in self.__schema_validator.schema["$infrastructure"]["KeySchema"]
+            ]
+        )
 
     @property
     def schema(self):
@@ -125,7 +158,9 @@ class Table:
         for k in ["LocalSecondaryIndexes", "GlobalSecondaryIndexes"]:
             self.__indexes.update(
                 {
-                    indexes["IndexName"]: tuple([i["AttributeName"] for i in indexes["KeySchema"]])
+                    indexes["IndexName"]: tuple(
+                        [i["AttributeName"] for i in indexes["KeySchema"]]
+                    )
                     for indexes in self.schema["$infrastructure"].get(k, list())
                 }
             )
@@ -186,10 +221,14 @@ class Table:
         elif "remove_attribute" == function_name:
             for path in given_input:
                 path_to_attribute = path[:-1]
-                attribtue = path[-1]
-                sub_schema, _ = self.__schema_validator.get_sub_schema(path_to_attribute)
-                if attribtue in sub_schema.get("required", list()):
-                    self.custom_exception.removing_required_attribute(attribtue, path_to_attribute)
+                attribute = path[-1]
+                sub_schema, _ = self.__schema_validator.get_sub_schema(
+                    path_to_attribute
+                )
+                if attribute in sub_schema.get("required", list()):
+                    self.custom_exception.removing_required_attribute(
+                        attribute, path_to_attribute
+                    )
         else:
             self._primary_key_checker(given_input)
 
@@ -204,7 +243,10 @@ class Table:
     def _cast_index_keys(self, index: str, *index_primary_data) -> dict:
         if isinstance(index_primary_data[0], dict):
             return index_primary_data[0]
-        return {self.indexes[index][i]: index_primary_data[i] for i in range(len(index_primary_data))}
+        return {
+            self.indexes[index][i]: index_primary_data[i]
+            for i in range(len(index_primary_data))
+        }
 
     def _index_key_checker(self, index: str, index_primary: dict):
         if not all(ik in index_primary for ik in self.indexes[index]):
@@ -214,7 +256,9 @@ class Table:
         elif len(index_primary) > len(self.indexes[index]):
             self.custom_exception.wrong_primary_key(index_primary)
 
-    def _create_projection_expression(self, attributes_to_get, existing_data: dict = None):
+    def _create_projection_expression(
+        self, attributes_to_get, existing_data: dict = None
+    ):
         if existing_data is None:
             existing_data = dict()
 
@@ -223,8 +267,16 @@ class Table:
         attribute_expressions = list()
 
         def next_expression(attribute_name, lc):
-            if attribute_name in existing_data.get("ExpressionAttributeNames", dict()).values():
-                return {va: k for k, va in existing_data.get("ExpressionAttributeNames", dict()).items()}[attribute_name], lc
+            if (
+                attribute_name
+                in existing_data.get("ExpressionAttributeNames", dict()).values()
+            ):
+                return {
+                    va: k
+                    for k, va in existing_data.get(
+                        "ExpressionAttributeNames", dict()
+                    ).items()
+                }[attribute_name], lc
             letter = f"#{_value_update_chars[lc].upper()}"
             attribute_expression_map[letter] = attribute_name
             lc += 1
@@ -254,9 +306,7 @@ class Table:
         from boto3 import client
 
         dynamo_db_client = client("dynamodb", **self.__resource_config)
-        response = dynamo_db_client.describe_table(
-            TableName=self.__table_name
-        )
+        response = dynamo_db_client.describe_table(TableName=self.__table_name)
         return response
 
     def get(self, attributes_to_get: list = None, **primary_dict):
@@ -277,16 +327,17 @@ class Table:
         """
         self._primary_key_checker(primary_dict)
 
-        get_data = {
-            "Key": primary_dict
-        }
+        get_data = {"Key": primary_dict}
         if attributes_to_get:
             expression, name_map = self._create_projection_expression(attributes_to_get)
-            get_data.update({"ProjectionExpression": expression, "ExpressionAttributeNames": name_map})
+            get_data.update(
+                {
+                    "ProjectionExpression": expression,
+                    "ExpressionAttributeNames": name_map,
+                }
+            )
 
-        response = self.__table.get_item(
-            **get_data
-        )
+        response = self.__table.get_item(**get_data)
 
         if "Item" not in response:
             self.custom_exception.not_found_message(primary_dict)
@@ -309,6 +360,7 @@ class Table:
         attribute_key_mapping = dict()
         expression_values = dict()
         letter_count = 0
+
         def assign_key_to_attribute_path_step(attribute_name, letter_count):
             if attribute_name not in attribute_key_mapping:
                 attribute_key_mapping[
@@ -319,14 +371,16 @@ class Table:
 
         for path_no, path in enumerate(path_to_attribute):
             for attribute in path:
-                letter_count = assign_key_to_attribute_path_step(attribute, letter_count)
+                letter_count = assign_key_to_attribute_path_step(
+                    attribute, letter_count
+                )
                 expression += f"{attribute_key_mapping[attribute]}."
             expression = expression[:-1]
             if set_items_if_set is not None:
                 expression += f" :{_value_update_chars[path_no]}"
-                expression_values[f":{_value_update_chars[path_no]}"] = object_with_float_to_decimal(set_items_if_set[
-                                                                                                         path_no
-                                                                                                     ])
+                expression_values[
+                    f":{_value_update_chars[path_no]}"
+                ] = object_with_float_to_decimal(set_items_if_set[path_no])
             expression += ", "
 
         expression = expression[:-2]
@@ -334,7 +388,11 @@ class Table:
         if list_position_if_list is not None:
             expression += f"[{list_position_if_list}]"
 
-        return expression, expression_values, {v: k for k, v in attribute_key_mapping.items()}
+        return (
+            expression,
+            expression_values,
+            {v: k for k, v in attribute_key_mapping.items()},
+        )
 
     @staticmethod
     def _create_update_expression(
@@ -344,13 +402,15 @@ class Table:
         values_per_path=None,
         list_operation: (bool, list, tuple) = False,
         set_operation: (bool, set) = False,
-        value_operation: bool = False
+        value_operation: bool = False,
     ):
         expression = "set " if (value_operation or not set_operation) else "add "
         expression_values = dict()
 
         if not paths_to_new_data or not values_per_path:
-            paths_to_new_data, values_per_path = find_path_values_in_dict(deepcopy(new_data))
+            paths_to_new_data, values_per_path = find_path_values_in_dict(
+                deepcopy(new_data)
+            )
 
         if isinstance(list_operation, bool):
             list_operation = [list_operation for i in paths_to_new_data]
@@ -372,9 +432,9 @@ class Table:
             return f"= :{_value_update_chars[path_no]}"
 
         def update_expression_value():
-            expression_values[f":{_value_update_chars[path_no]}"] = object_with_float_to_decimal(values_per_path[
-                    path_no
-                ])
+            expression_values[
+                f":{_value_update_chars[path_no]}"
+            ] = object_with_float_to_decimal(values_per_path[path_no])
 
         def assign_key_to_attribute_path_step(attribute_name, letter_count):
             if attribute_name not in attribute_key_mapping:
@@ -426,10 +486,12 @@ class Table:
         existing_attribute_paths: (list, None),
         not_existing_attribute_paths: (list, None),
         expression_name_map: dict,
-        direct_conditions=None
+        direct_conditions=None,
     ):
 
-        if not any([existing_attribute_paths, not_existing_attribute_paths, direct_conditions]):
+        if not any(
+            [existing_attribute_paths, not_existing_attribute_paths, direct_conditions]
+        ):
             return None
 
         conditions = list()
@@ -458,9 +520,13 @@ class Table:
             )
         if direct_conditions:
             if not isinstance(direct_conditions, Iterable):
-                cond, att_map, val_map = ConditionExpressionBuilder().build_expression(direct_conditions)
+                cond, att_map, val_map = ConditionExpressionBuilder().build_expression(
+                    direct_conditions
+                )
             else:
-                cond, att_map, val_map = ConditionExpressionBuilder().build_expression(And(*direct_conditions))
+                cond, att_map, val_map = ConditionExpressionBuilder().build_expression(
+                    And(*direct_conditions)
+                )
             conditions.append(cond)
 
         return " and ".join(conditions), att_map, val_map
@@ -492,15 +558,22 @@ class Table:
                 expression_value_map,
                 expression_name_map,
                 paths_to_data,
-            ) = self._create_update_expression(new_data, list_operation=list_operation, set_operation=set_operation, value_operation=value_operation)
+            ) = self._create_update_expression(
+                new_data,
+                list_operation=list_operation,
+                set_operation=set_operation,
+                value_operation=value_operation,
+            )
 
         else:
             # ToDo create condition for attribute still required length if schema contains minItems/minProperties
             (
                 update_expression,
                 expression_value_map,
-                expression_name_map
-            ) = self._create_remove_expression(remove_data, remove_list_item, remove_set_item)
+                expression_name_map,
+            ) = self._create_remove_expression(
+                remove_data, remove_list_item, remove_set_item
+            )
             paths_to_data = remove_data.copy()
 
         necessary_attribute_paths = list()
@@ -518,7 +591,7 @@ class Table:
             if require_attributes_to_be_missing
             else None,
             expression_name_map=expression_name_map,
-            direct_conditions=direct_condition
+            direct_conditions=direct_condition,
         ):
             condition_expression = condition_data[0]
             expression_name_map.update(condition_data[1])
@@ -532,7 +605,7 @@ class Table:
             "ExpressionAttributeNames": expression_name_map,
             "ExpressionAttributeValues": expression_value_map,
             "ReturnValues": returns,
-            "ConditionExpression": condition_expression
+            "ConditionExpression": condition_expression,
         }
         for key, value in update_dict.copy().items():
             if not value:
@@ -544,7 +617,9 @@ class Table:
                 while remove_data[index]:
                     rd = rd[remove_data[index].pop(0)]
                     try:
-                        return_data[index] = rd[remove_list_item] if remove_list_item else rd
+                        return_data[index] = (
+                            rd[remove_list_item] if remove_list_item else rd
+                        )
                     except KeyError:
                         raise IndexError("the given position_to_delete does not exist")
                 resp = return_data
@@ -591,7 +666,7 @@ class Table:
                             "UpdateExpression": expression,
                             "ExpressionAttributeValues": values,
                             "ExpressionAttributeNames": expression_name_map,
-                            "ReturnValues": returns
+                            "ReturnValues": returns,
                         }
                         response = self.__table.update_item(**update_dict)
                         return handle_response(response)
@@ -655,7 +730,7 @@ class Table:
             require_attributes_to_be_missing=True if not update_if_existent else False,
             create_item_if_non_existent=create_item_if_non_existent,
             direct_condition=condition,
-            returns=returns
+            returns=returns,
         )
 
     def update_attribute(
@@ -675,7 +750,7 @@ class Table:
             else False,
             create_item_if_non_existent=create_item_if_non_existent,
             direct_condition=condition,
-            returns=returns
+            returns=returns,
         )
 
     def update_list_item(self, primary_dict, item_no, condition=None, **new_data):
@@ -699,7 +774,7 @@ class Table:
             create_item_if_non_existent=create_item_if_non_existent,
             list_operation=True,
             direct_condition=condition,
-            returns=returns
+            returns=returns,
         )
 
     def update_add_set(
@@ -720,17 +795,17 @@ class Table:
             create_item_if_non_existent=create_item_if_non_existent,
             set_operation=True,
             direct_condition=condition,
-            returns=returns
+            returns=returns,
         )
 
     def update_number_drift(
-            self,
-            drift_values_in_dict: dict,
-            set_new_attribute_if_not_existent=False,
-            create_item_if_non_existent=False,
-            returns: UpdateReturns = UpdateReturns.NONE,
-            condition=None,
-            **primary_dict
+        self,
+        drift_values_in_dict: dict,
+        set_new_attribute_if_not_existent=False,
+        create_item_if_non_existent=False,
+        returns: UpdateReturns = UpdateReturns.NONE,
+        condition=None,
+        **primary_dict,
     ):
         return self.__general_update(
             **primary_dict,
@@ -741,7 +816,7 @@ class Table:
             create_item_if_non_existent=create_item_if_non_existent,
             value_operation=True,
             direct_condition=condition,
-            returns=returns
+            returns=returns,
         )
 
     def put(self, item, overwrite=False):
@@ -763,11 +838,11 @@ class Table:
                 raise CE
 
     def remove_attribute(
-            self,
-            path_of_attribute: list,
-            returns: UpdateReturns = UpdateReturns.NONE,
-            condition=None,
-            **primary_dict
+        self,
+        path_of_attribute: list,
+        returns: UpdateReturns = UpdateReturns.NONE,
+        condition=None,
+        **primary_dict,
     ):
         if not isinstance(path_of_attribute[0], list):
             path_of_attribute = [path_of_attribute]
@@ -778,16 +853,16 @@ class Table:
             remove_data=path_of_attribute.copy(),
             returns=returns,
             direct_condition=condition,
-            **primary_dict
+            **primary_dict,
         )
 
     def remove_entry_in_list(
         self,
-            path_to_list: list,
-            position_to_delete: int,
-            returns: UpdateReturns = UpdateReturns.NONE,
-            condition=None,
-            **primary_dict
+        path_to_list: list,
+        position_to_delete: int,
+        returns: UpdateReturns = UpdateReturns.NONE,
+        condition=None,
+        **primary_dict,
     ):
         if not isinstance(path_to_list[0], list):
             path_to_list = [path_to_list]
@@ -798,16 +873,16 @@ class Table:
             remove_list_item=position_to_delete,
             returns=returns,
             direct_condition=condition,
-            **primary_dict
+            **primary_dict,
         )
 
     def remove_from_set(
-            self,
-            path_to_set: list,
-            items_to_delete: (List[set], set),
-            returns: UpdateReturns = UpdateReturns.NONE,
-            condition=None,
-            **primary_dict,
+        self,
+        path_to_set: list,
+        items_to_delete: (List[set], set),
+        returns: UpdateReturns = UpdateReturns.NONE,
+        condition=None,
+        **primary_dict,
     ):
         if not isinstance(path_to_set[0], list):
             path_to_set = [path_to_set]
@@ -823,24 +898,19 @@ class Table:
             remove_set_item=items_to_delete,
             returns=returns,
             direct_condition=condition,
-            **primary_dict
+            **primary_dict,
         )
 
     def delete(self, condition=None, **primary_dict):
         self._primary_key_checker(primary_dict.keys())
-        delete_data = {
-            "Key": primary_dict
-        }
+        delete_data = {"Key": primary_dict}
         if condition:
             delete_data.update({"ConditionExpression": condition})
         self.__table.delete_item(**delete_data)
 
     def get_and_delete(self, condition=None, **primary_dict):
         self._primary_key_checker(primary_dict.keys())
-        delete_data = {
-            "Key": primary_dict,
-            "ReturnValues": UpdateReturns.ALL_OLD
-        }
+        delete_data = {"Key": primary_dict, "ReturnValues": UpdateReturns.ALL_OLD}
         if condition:
             delete_data.update({"ConditionExpression": condition})
         response = self.__table.delete_item(**delete_data)
@@ -859,13 +929,13 @@ class Table:
                 batch.delete_item(Key={key: item[key] for key in self.pk})
 
     def query(
-            self,
-            attributes_to_get: list = None,
-            max_results: int = None,
-            offset_last_key: (str, int, float, dict) = None,
-            range_condition: ConditionBase = None,
-            index: str = None,
-            **query_keys
+        self,
+        attributes_to_get: list = None,
+        max_results: int = None,
+        offset_last_key: (str, int, float, dict) = None,
+        range_condition: ConditionBase = None,
+        index: str = None,
+        **query_keys,
     ) -> dict:
         """
         query data based
@@ -917,12 +987,20 @@ class Table:
 
         condition_expression_array = [Key(k).eq(v) for k, v in query_keys.items()]
         if range_condition:
-            condition_expression_array.append(type(range_condition)(Key(range_key), *range_condition._values))
+            condition_expression_array.append(
+                type(range_condition)(Key(range_key), *range_condition._values)
+            )
 
-        query_data["KeyConditionExpression"], query_data["ExpressionAttributeNames"], query_data["ExpressionAttributeValues"] = _combine_and_conditions(condition_expression_array)
+        (
+            query_data["KeyConditionExpression"],
+            query_data["ExpressionAttributeNames"],
+            query_data["ExpressionAttributeValues"],
+        ) = _combine_and_conditions(condition_expression_array)
 
         if attributes_to_get:
-            expression, name_map = self._create_projection_expression(attributes_to_get, query_data)
+            expression, name_map = self._create_projection_expression(
+                attributes_to_get, query_data
+            )
             query_data["ProjectionExpression"] = expression
             query_data["ExpressionAttributeNames"].update(name_map)
         else:
@@ -932,25 +1010,30 @@ class Table:
             query_data["Limit"] = max_results
         if offset_last_key:
             if not index:
-                start_key = {primary_key: query_keys[primary_key], range_key: offset_last_key}
+                start_key = {
+                    primary_key: query_keys[primary_key],
+                    range_key: offset_last_key,
+                }
             else:
                 start_key = object_with_float_to_decimal(offset_last_key)
             query_data["ExclusiveStartKey"] = start_key
 
-        response = self.__table.query(
-            **query_data
-        )
+        response = self.__table.query(**query_data)
         if items := response.get("Items", list()):
             response["Items"] = object_with_decimal_to_float(items)
         if "LastEvaluatedKey" in response:
-            response["LastEvaluatedKey"] = object_with_decimal_to_float(response["LastEvaluatedKey"])
+            response["LastEvaluatedKey"] = object_with_decimal_to_float(
+                response["LastEvaluatedKey"]
+            )
             if not index:
                 response["LastEvaluatedKey"] = response["LastEvaluatedKey"][range_key]
             else:
                 response["LastEvaluatedKey"] = response["LastEvaluatedKey"]
         return response
 
-    def __return_dict_of_pk_items_from_multiple_item_response(self, object_list: list, convert: bool) -> (dict, list):
+    def __return_dict_of_pk_items_from_multiple_item_response(
+        self, object_list: list, convert: bool
+    ) -> (dict, list):
         if not convert:
             return object_list
         if len(self.pk) == 1:
@@ -958,11 +1041,11 @@ class Table:
         return {(item[self.pk[0]], item[self.pk[1]]): item for item in object_list}
 
     def index_get(
-            self,
-            index: str,
-            return_as_dict_of_primary_keys: bool = False,
-            attributes_to_get: list = None,
-            **index_keys: dict
+        self,
+        index: str,
+        return_as_dict_of_primary_keys: bool = False,
+        attributes_to_get: list = None,
+        **index_keys: dict,
     ):
         """
         get item from index name with index primary
@@ -972,7 +1055,7 @@ class Table:
         index: str
             the name of the index
         index_keys: dict
-            dict of the primary_keys
+            dictionary of the primary_keys
         attributes_to_get: list, optional
             specify certain attributes to get
         return_as_dict_of_primary_keys: bool
@@ -988,15 +1071,17 @@ class Table:
         index_keys = self._cast_index_keys(index, index_keys)
         self._index_key_checker(index, index_keys)
         object_list = self.query(
-            index=index,
-            attributes_to_get=attributes_to_get,
-            **index_keys
+            index=index, attributes_to_get=attributes_to_get, **index_keys
         )["Items"]
         if len(object_list) == 0:
             raise FileNotFoundError
-        return self.__return_dict_of_pk_items_from_multiple_item_response(object_list, return_as_dict_of_primary_keys)
+        return self.__return_dict_of_pk_items_from_multiple_item_response(
+            object_list, return_as_dict_of_primary_keys
+        )
 
-    def batch_get(self, primary_keys: Iterable, return_as_dict_of_primary_keys: bool = False) -> dict:
+    def batch_get(
+        self, primary_keys: Iterable, return_as_dict_of_primary_keys: bool = False
+    ) -> dict:
         """
         get all items with given primary keys
 
@@ -1015,12 +1100,12 @@ class Table:
         """
         primary_keys = self._cast_primary_keys(primary_keys, batch=True)
 
-        response = _ddb_resource.batch_get_item(RequestItems={
-            self.__table_name: {
-                "Keys": primary_keys
-            }
-        })
-        object_list = object_with_decimal_to_float(response["Responses"][self.__table_name])
-        return self.__return_dict_of_pk_items_from_multiple_item_response(object_list, return_as_dict_of_primary_keys)
-
-
+        response = _ddb_resource.batch_get_item(
+            RequestItems={self.__table_name: {"Keys": primary_keys}}
+        )
+        object_list = object_with_decimal_to_float(
+            response["Responses"][self.__table_name]
+        )
+        return self.__return_dict_of_pk_items_from_multiple_item_response(
+            object_list, return_as_dict_of_primary_keys
+        )

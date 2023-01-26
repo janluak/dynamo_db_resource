@@ -13,7 +13,7 @@ _json_schema_2_dynamo_db_type_switch = {
     "null": "NULL",
     "stringSet": "SS",
     "numberSet": "NS",
-    "bytesSet": "BS"
+    "bytesSet": "BS",
 }
 _array_types = ["array", "stringSet", "numberSet", "bytesSet"]
 
@@ -35,27 +35,33 @@ def _is_bytes_set(checker, instance):
 
 
 def _min_items(validator, mi, instance, schema):
-    if any([validator.is_type(instance, i) for i in _array_types]) and len(instance) < mi:
+    if (
+        any([validator.is_type(instance, i) for i in _array_types])
+        and len(instance) < mi
+    ):
         yield ValidationError("%r is too short" % (instance,))
 
 
 def _max_items(validator, mi, instance, schema):
-    if any([validator.is_type(instance, i) for i in _array_types]) and len(instance) > mi:
+    if (
+        any([validator.is_type(instance, i) for i in _array_types])
+        and len(instance) > mi
+    ):
         yield ValidationError("%r is too long" % (instance,))
 
 
 DynamoDBValidator = extend(
     BaseValidator,
     validators={
-        u"maxItems": _max_items,
-        u"minItems": _min_items,
+        "maxItems": _max_items,
+        "minItems": _min_items,
     },
     type_checker=BaseValidator.TYPE_CHECKER.redefine_many(
-            {
-                u"bytes": _is_bytes,
-                u"stringSet": _is_string_set,
-                u"numberSet": _is_number_set,
-                u"bytesSet": _is_bytes_set,
-            }
-        )
+        {
+            "bytes": _is_bytes,
+            "stringSet": _is_string_set,
+            "numberSet": _is_number_set,
+            "bytesSet": _is_bytes_set,
+        }
+    ),
 )

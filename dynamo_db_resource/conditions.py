@@ -17,5 +17,5 @@ from boto3.dynamodb.conditions import (
     And,
     Or,
     Not,
-    Key
+    Key,
 )

@@ -20,4 +20,3 @@ def test_main(os_env):
     tables = ["TableForTest"]
 
     create_table_for_schema_in_directory(directory, tables)
-
