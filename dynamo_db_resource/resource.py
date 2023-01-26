@@ -5,7 +5,7 @@ __all__ = ["database_resource", "DatabaseResourceController"]
 
 
 class DatabaseResourceController:
-    def __init__(self, config=None):
+    def __init__(self, config: dict = None):
         self.__tables = dict()
         self._config = config if config else {}
 
