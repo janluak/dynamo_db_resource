@@ -1590,6 +1590,35 @@ class TestDynamoDB(TestDynamoDBBase):
         response = t.scan()
         self.assertEqual(list(), response["Items"])
 
+    def test_scan_with_attributes_to_get(self):
+        from dynamo_db_resource import Table
+
+        t = Table(self.table_name)
+        t.put(test_item)
+
+        response = t.scan(attributes_to_get=["some_dict.key1"])
+        self.assertEqual(
+            {
+                "primary_partition_key": "some_identification_string",
+                "some_dict": {"key1": "value1"}
+            },
+            response["Items"][0]
+        )
+
+        test_user_copy = test_item.copy()
+        for n in range(5):
+            test_user_copy.update(
+                {"primary_partition_key": f"some_identification_string_{n}"}
+            )
+            t.put(test_user_copy)
+
+        response = t.scan(get_only_primaries=True)
+        self.assertEqual(6, response["Count"])
+
+        for item in response["Items"]:
+            self.assertEqual(1, len(item))
+
+
     def test_batch_get_single_primary(self):
         from dynamo_db_resource import Table
 
@@ -2130,3 +2159,13 @@ class TestDynamoDBRangeNIndex(TestDynamoDBBase):
             },
             response,
         )
+
+    def test_scan_with_attributes_to_get(self):
+        from dynamo_db_resource import Table
+
+        t = Table(self.table_name)
+
+        response = t.scan(get_only_primaries=True)
+
+        for item in response["Items"]:
+            self.assertEqual(2, len(item))

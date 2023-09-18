@@ -916,8 +916,17 @@ class Table:
         response = self.__table.delete_item(**delete_data)
         return object_with_decimal_to_float(response["Attributes"])
 
-    def scan(self):
-        response = self.__table.scan()
+    def scan(self, get_only_primaries: bool = None, attributes_to_get: list = None):
+        if attributes_to_get or get_only_primaries:
+            if not isinstance(attributes_to_get, list):
+                attributes_to_get = []
+            expression, name_map = self._create_projection_expression(attributes_to_get)
+            response = self.__table.scan(
+                ProjectionExpression=expression,
+                ExpressionAttributeNames=name_map
+            )
+        else:
+            response = self.__table.scan()
         response["Items"] = [
             object_with_decimal_to_float(item) for item in response["Items"]
         ]
