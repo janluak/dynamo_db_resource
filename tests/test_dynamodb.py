@@ -795,6 +795,25 @@ class TestDynamoDB(TestDynamoDBBase):
             FNF.exception.args[0],
         )
 
+    def test_get_and_delete_not_exising_item(self):
+        from dynamo_db_resource import Table
+
+        t = Table(self.table_name)
+
+        unknown_primary = "unknown-primary"
+
+        with self.assertRaises(FileNotFoundError) as FNF:
+            t.get_and_delete(primary_partition_key=unknown_primary)
+
+        self.assertEqual(
+            {
+                "statusCode": 404,
+                "body": f"{{'{t.pk[0]}': '{unknown_primary}'}} not found in {self.table_name}",
+                "headers": {"Content-Type": "text/plain"},
+            },
+            FNF.exception.args[0],
+        )
+
     def test_doubled_put_item_with_same_primary(self):
         from dynamo_db_resource import Table
 

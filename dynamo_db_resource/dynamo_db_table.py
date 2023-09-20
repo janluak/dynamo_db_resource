@@ -914,6 +914,8 @@ class Table:
         if condition:
             delete_data.update({"ConditionExpression": condition})
         response = self.__table.delete_item(**delete_data)
+        if not response["Attributes"]:
+            self.custom_exception.not_found_message(primary_dict)
         return object_with_decimal_to_float(response["Attributes"])
 
     def scan(self, get_only_primaries: bool = None, attributes_to_get: list = None):
